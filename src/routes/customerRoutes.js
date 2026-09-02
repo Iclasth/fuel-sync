@@ -1,5 +1,6 @@
 const express = require('express');
-const customerController = require('../controllers/customerContoller.js');
+const customerController = require('../controllers/customerController.js');
+const { validateCreateCustomer, validateUpdateCustomer } = require('../middlewares/customerValidator.js');
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - name:
+ *               - name
  *               - cpf
  *             properties:
  *               name:
@@ -26,14 +27,18 @@ const router = express.Router();
  *                 example: Maria Gasolina da Silva
  *               cpf:
  *                 type: string
- *                 example: 12345678900
+ *                 example: 52998224725
  *     responses:
  *       201:
  *         description: Cliente cadastrado com sucesso
  *       400:
- *         description: Dados inválidos fornecidos
+ *         description: Dados de validação inválidos
+ *       409:
+ *         description: CPF já cadastrado no sistema
+ *       500:
+ *         description: Erro interno no servidor
  */
-router.post('/', customerController.createCustomer);
+router.post('/', validateCreateCustomer, customerController.createCustomer);
 
 // Rota para obter todos os clientes
 /**
@@ -49,8 +54,7 @@ router.post('/', customerController.createCustomer);
  *       500:
  *         description: Erro interno no servidor
  */
-router.get('/customers', customerController.getCustomers);
-
+router.get('/', customerController.getCustomers);
 
 // Rota para atualizar um cliente existente pelo ID
 /**
@@ -65,7 +69,7 @@ router.get('/customers', customerController.getCustomers);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: ID do cliente que será atualizado
  *     requestBody:
  *       required: true
@@ -76,15 +80,23 @@ router.get('/customers', customerController.getCustomers);
  *             properties:
  *               name:
  *                 type: string
+ *                 example: Maria Gasolina da Silva
  *               cpf:
  *                 type: string
+ *                 example: 52998224725
  *     responses:
  *       200:
  *         description: Cliente atualizado com sucesso
  *       400:
  *         description: Erro de validação nos dados
+ *       404:
+ *         description: Cliente não encontrado
+ *       409:
+ *         description: CPF já pertence a outro cliente
+ *       500:
+ *         description: Erro interno no servidor
  */
-router.put('/customers/:id', customerController.updateCustomer);
+router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
 
 // Rota para excluir um cliente pelo ID
 /**
@@ -99,14 +111,16 @@ router.put('/customers/:id', customerController.updateCustomer);
  *         name: id
  *         required: true
  *         schema:
- *           type: integer
+ *           type: string
  *         description: ID do cliente que será deletado
  *     responses:
  *       204:
  *         description: Cliente deletado com sucesso (sem conteúdo)
- *       400:
- *         description: Erro ao tentar deletar o cliente
+ *       404:
+ *         description: Cliente não encontrado
+ *       500:
+ *         description: Erro interno no servidor
  */
-router.delete('/customers/:id', customerController.deleteCustomer);
+router.delete('/:id', customerController.deleteCustomer);
 
 module.exports = router;
