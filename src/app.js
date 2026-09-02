@@ -1,11 +1,12 @@
 const express = require('express')
 const app = express()
-const port = 3000
+
+// Middleware. Converte de JSON para objeto JavaScript
+app.use(express.json())
 
 app.get('/', (req, res) => {
   res.send('Olá Mundo!')
 })
 
-app.listen(port, () => {
-  console.log(`Exemplo de app rodando em http://localhost:${port}`)
-})
+// Facilita a importação do app em outros arquivos, como o server.js
+module.exports = app
