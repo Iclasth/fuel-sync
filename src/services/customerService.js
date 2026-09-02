@@ -1,4 +1,6 @@
-export const createCustomer = async (customerData) => {
+const supabase = require('../config/supabaseClient');
+
+const createCustomer = async (customerData) => {
     const { data, error } = await supabase
         .from('customers')
         .insert([customerData])
@@ -11,7 +13,7 @@ export const createCustomer = async (customerData) => {
     return data;
 }
 
-export const getUsers = async () => {
+const getCustomers = async () => {
     const { data, error } = await supabase
         .from('customers')
         .select('*');
@@ -23,7 +25,7 @@ export const getUsers = async () => {
     return data;
 }
 
-export const updateCustomer = async (customerId, updatedData) => {
+const updateCustomer = async (customerId, updatedData) => {
     const { data, error } = await supabase
     .from('customers')
     .update(updatedData)
@@ -37,7 +39,7 @@ export const updateCustomer = async (customerId, updatedData) => {
     return data;
 }
 
-export const deleteCustomer = async (customerId) => {
+const deleteCustomer = async (customerId) => {
     const { data, error } = await supabase
     .from('customers')
     .delete()
@@ -49,4 +51,11 @@ export const deleteCustomer = async (customerId) => {
     }
 
     return { success: true, message: 'Customer deleted successfully' };
+}
+
+module.exports = {
+    createCustomer,
+    getCustomers,
+    updateCustomer,
+    deleteCustomer
 }
