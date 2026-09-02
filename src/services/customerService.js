@@ -7,10 +7,17 @@ const createCustomer = async (customerData) => {
         .select();
 
     if (error) {
-        throw new Error(`An error occurred while creating the customers: ${error.message}`);
+        if (error.code === '23505' || (error.message && (error.message.includes('unique') || error.message.includes('duplicate')))) {
+            const err = new Error('Já existe um cliente cadastrado com este CPF.');
+            err.statusCode = 409;
+            throw err;
+        }
+        const err = new Error(`Erro ao cadastrar cliente: ${error.message}`);
+        err.statusCode = 500;
+        throw err;
     }
 
-    return data;
+    return data && data.length > 0 ? data[0] : data;
 }
 
 const getCustomers = async () => {
@@ -19,7 +26,9 @@ const getCustomers = async () => {
         .select('*');
 
     if (error) {
-        throw new Error(`An error occurred while fetching customers: ${error.message}`);
+        const err = new Error(`Erro ao buscar clientes: ${error.message}`);
+        err.statusCode = 500;
+        throw err;
     }
 
     return data;
@@ -27,30 +36,51 @@ const getCustomers = async () => {
 
 const updateCustomer = async (customerId, updatedData) => {
     const { data, error } = await supabase
-    .from('customers')
-    .update(updatedData)
-    .eq('id', customerId)
-    .select();
+        .from('customers')
+        .update(updatedData)
+        .eq('id', customerId)
+        .select();
 
     if (error) {
-        throw new Error(`An error occurred while updating the customer: ${error.message}`);
+        if (error.code === '23505' || (error.message && (error.message.includes('unique') || error.message.includes('duplicate')))) {
+            const err = new Error('Já existe um cliente cadastrado com este CPF.');
+            err.statusCode = 409;
+            throw err;
+        }
+        const err = new Error(`Erro ao atualizar cliente: ${error.message}`);
+        err.statusCode = 500;
+        throw err;
     }
 
-    return data;
+    if (!data || data.length === 0) {
+        const err = new Error('Cliente não encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    return data[0];
 }
 
 const deleteCustomer = async (customerId) => {
     const { data, error } = await supabase
-    .from('customers')
-    .delete()
-    .eq('id', customerId)
-    .select();
+        .from('customers')
+        .delete()
+        .eq('id', customerId)
+        .select();
 
     if (error) {
-        throw new Error(`An error occurred while deleting the customer: ${error.message}`);
+        const err = new Error(`Erro ao deletar cliente: ${error.message}`);
+        err.statusCode = 500;
+        throw err;
     }
 
-    return { success: true, message: 'Customer deleted successfully' };
+    if (!data || data.length === 0) {
+        const err = new Error('Cliente não encontrado.');
+        err.statusCode = 404;
+        throw err;
+    }
+
+    return { success: true, message: 'Cliente deletado com sucesso.' };
 }
 
 module.exports = {

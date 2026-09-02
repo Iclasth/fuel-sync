@@ -1,14 +1,20 @@
-const express = require('express')
-const customerRoutes = require('./routes/customerRoutes.js')
-const { swaggerUi, swaggerSpec } = require('./config/swagger.js')
+const express = require('express');
+const customerRoutes = require('./routes/customerRoutes.js');
+const { swaggerUi, swaggerSpec } = require('./config/swagger.js');
+const errorHandler = require('./middlewares/errorHandler.js');
 
-const app = express()
+const app = express();
 
-// Middleware. Converte de JSON para objeto JavaScript
-app.use(express.json())
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec))
+// Middleware para parsing de JSON
+app.use(express.json());
 
+// Documentação Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Rotas do módulo de Clientes
 app.use('/customers', customerRoutes);
 
-// Facilita a importação do app em outros arquivos, como o server.js
-module.exports = app
+// Middleware centralizado de tratamento de erros
+app.use(errorHandler);
+
+module.exports = app;
