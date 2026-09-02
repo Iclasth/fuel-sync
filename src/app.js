@@ -1,5 +1,5 @@
 const express = require('express')
-const { swaggerUi, swaggerSpec } = require('./config/swagger')
+const { swaggerUi, swaggerSpec } = require('./config/swagger.js')
 const app = express()
 
 // Middleware. Converte de JSON para objeto JavaScript
