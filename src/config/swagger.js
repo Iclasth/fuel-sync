@@ -14,12 +14,22 @@ const swaggerDefinition =
             url: 'http://localhost:3000',
             description: 'Server URL'
         },   
-    ], 
+    ],
+    components: {
+        securitySchemes: {
+            bearerAuth: {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                description: 'Insira o token JWT emitido pelo Supabase Auth'
+            }
+        }
+    }
 };
 
 const options = {
     swaggerDefinition,
-    apis: ['./src/routes/*.js'], // Caminho para os arquivos de rotas
+    apis: ['./src/routes/*.js', './src/modules/**/*.js'], // Caminho para os arquivos de rotas
 };
 
 const swaggerSpec = swaggerJsdoc(options);
