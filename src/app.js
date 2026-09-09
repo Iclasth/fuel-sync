@@ -11,7 +11,11 @@ app.use(express.json());
 // Documentação Swagger UI
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Rotas do módulo de Clientes
+// Rotas dos módulos
+const authRoutes = require('./modules/auth/authRoutes.js');
+app.use('/api/v1/auth', authRoutes);
+
+// Rotas legadas do módulo de Clientes
 app.use('/customers', customerRoutes);
 
 // Middleware centralizado de tratamento de erros

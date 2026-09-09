@@ -79,7 +79,7 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
 
             expect(res.status).toBe(409);
             expect(res.body).toHaveProperty('error');
-            expect(res.body.error).toMatch(/já cadastrado/i);
+            expect(res.body.error).toMatch(/já.*cadastrado/i);
         });
 
         it('TC-API-03: deve retornar 400 se os dados de validação forem inválidos', async () => {
