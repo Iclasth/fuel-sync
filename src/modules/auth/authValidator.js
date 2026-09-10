@@ -1,32 +1,4 @@
-function isValidCPF(cpf) {
-    if (!cpf || typeof cpf !== 'string') return false;
-
-    const cleaned = cpf.replace(/\D/g, '');
-    if (cleaned.length !== 11) return false;
-
-    // Elimina CPFs com todos os dígitos iguais (00000000000, 11111111111...)
-    if (/^(\d)\1{10}$/.test(cleaned)) return false;
-
-    // Validação do 1º dígito verificador
-    let sum = 0;
-    for (let i = 1; i <= 9; i++) {
-        sum += parseInt(cleaned.substring(i - 1, i), 10) * (11 - i);
-    }
-    let remainder = (sum * 10) % 11;
-    if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(cleaned.substring(9, 10), 10)) return false;
-
-    // Validação do 2º dígito verificador
-    sum = 0;
-    for (let i = 1; i <= 10; i++) {
-        sum += parseInt(cleaned.substring(i - 1, i), 10) * (12 - i);
-    }
-    remainder = (sum * 10) % 11;
-    if (remainder === 10 || remainder === 11) remainder = 0;
-    if (remainder !== parseInt(cleaned.substring(10, 11), 10)) return false;
-
-    return true;
-}
+const { isValidCPF } = require('../../common/utils/cpfValidator');
 
 function isValidEmail(email) {
     if (!email || typeof email !== 'string') return false;

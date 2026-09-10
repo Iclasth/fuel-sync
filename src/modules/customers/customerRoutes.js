@@ -1,10 +1,13 @@
 const express = require('express');
-const customerController = require('../controllers/customerController.js');
-const { validateCreateCustomer, validateUpdateCustomer } = require('../middlewares/customerValidator.js');
+const customerController = require('./customerController');
+const { validateCreateCustomer, validateUpdateCustomer } = require('./customerValidator');
+const authMiddleware = require('../../common/middlewares/authMiddleware');
 
 const router = express.Router();
 
-// Rota para criar um novo cliente
+// Aplica autenticação obrigatória para todas as rotas do domínio de clientes
+router.use(authMiddleware);
+
 /**
  * @openapi
  * /customers:
@@ -12,6 +15,8 @@ const router = express.Router();
  *     summary: Cadastra um novo cliente
  *     tags:
  *       - Customers
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -33,6 +38,8 @@ const router = express.Router();
  *         description: Cliente cadastrado com sucesso
  *       400:
  *         description: Dados de validação inválidos
+ *       401:
+ *         description: Não autenticado ou token inválido
  *       409:
  *         description: CPF já cadastrado no sistema
  *       500:
@@ -40,7 +47,6 @@ const router = express.Router();
  */
 router.post('/', validateCreateCustomer, customerController.createCustomer);
 
-// Rota para obter todos os clientes
 /**
  * @openapi
  * /customers:
@@ -48,15 +54,18 @@ router.post('/', validateCreateCustomer, customerController.createCustomer);
  *     summary: Retorna a lista de todos os clientes
  *     tags:
  *       - Customers
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Lista de clientes retornada com sucesso
+ *       401:
+ *         description: Não autenticado ou token inválido
  *       500:
  *         description: Erro interno no servidor
  */
 router.get('/', customerController.getCustomers);
 
-// Rota para atualizar um cliente existente pelo ID
 /**
  * @openapi
  * /customers/{id}:
@@ -64,6 +73,8 @@ router.get('/', customerController.getCustomers);
  *     summary: Atualiza os dados de um cliente existente
  *     tags:
  *       - Customers
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -89,6 +100,8 @@ router.get('/', customerController.getCustomers);
  *         description: Cliente atualizado com sucesso
  *       400:
  *         description: Erro de validação nos dados
+ *       401:
+ *         description: Não autenticado ou token inválido
  *       404:
  *         description: Cliente não encontrado
  *       409:
@@ -98,7 +111,6 @@ router.get('/', customerController.getCustomers);
  */
 router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
 
-// Rota para excluir um cliente pelo ID
 /**
  * @openapi
  * /customers/{id}:
@@ -106,6 +118,8 @@ router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
  *     summary: Remove um cliente do sistema
  *     tags:
  *       - Customers
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -116,6 +130,8 @@ router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
  *     responses:
  *       204:
  *         description: Cliente deletado com sucesso (sem conteúdo)
+ *       401:
+ *         description: Não autenticado ou token inválido
  *       404:
  *         description: Cliente não encontrado
  *       500:

@@ -1,7 +1,6 @@
 const express = require('express');
-const customerRoutes = require('./routes/customerRoutes.js');
 const { swaggerUi, swaggerSpec } = require('./config/swagger.js');
-const errorHandler = require('./middlewares/errorHandler.js');
+const errorHandler = require('./common/middlewares/errorHandler.js');
 
 const app = express();
 
@@ -13,9 +12,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Rotas dos módulos
 const authRoutes = require('./modules/auth/authRoutes.js');
-app.use('/api/v1/auth', authRoutes);
+const customerRoutes = require('./modules/customers/customerRoutes.js');
 
-// Rotas legadas do módulo de Clientes
+app.use('/api/v1/auth', authRoutes);
 app.use('/customers', customerRoutes);
 
 // Middleware centralizado de tratamento de erros
