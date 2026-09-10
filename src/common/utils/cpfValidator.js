@@ -1,4 +1,12 @@
 /**
+ * Remove formatação e caracteres não numéricos do CPF.
+ */
+function cleanCPF(cpf) {
+    if (!cpf) return '';
+    return String(cpf).replace(/\D/g, '').trim();
+}
+
+/**
  * Validação matemática do algoritmo oficial de dígitos verificadores do CPF.
  * @param {string} cpf - String contendo o CPF formatado ou apenas dígitos.
  * @returns {boolean} - true se o CPF for válido, false caso contrário.
@@ -6,7 +14,7 @@
 function isValidCPF(cpf) {
     if (!cpf || typeof cpf !== 'string') return false;
 
-    const cleaned = cpf.replace(/\D/g, '');
+    const cleaned = cleanCPF(cpf);
     if (cleaned.length !== 11) return false;
 
     // Elimina CPFs com todos os dígitos iguais (ex: 00000000000, 11111111111...)
@@ -33,4 +41,8 @@ function isValidCPF(cpf) {
     return true;
 }
 
-module.exports = { isValidCPF };
+module.exports = {
+    isValidCPF,
+    validateCPF: isValidCPF,
+    cleanCPF
+};
