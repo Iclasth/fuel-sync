@@ -1,0 +1,145 @@
+Table PerfisUsuarios {
+  id uuid [pk]
+  email varchar(150) [unique, not null]
+  nome varchar(120) [not null]
+  role varchar(20) [not null, note: 'cliente, posto_admin, entregador']
+  created_at datetime [default: `now()`]
+}
+
+Table Postos {
+  id integer [pk, increment]
+  nome_fantasia varchar(150) [not null]
+  razao_social varchar(150)
+  cnpj varchar(18) [unique, not null]
+  telefone varchar(20) [not null]
+  endereco varchar(255) [not null]
+  latitude decimal(9,6) [not null]
+  longitude decimal(9,6) [not null]
+  tempo_medio_preparo_minutos integer [default: 12]
+  ativo boolean [default: true]
+  created_at datetime [default: `now()`]
+}
+
+Table Clientes {
+  id integer [pk, increment]
+  usuario_id uuid [unique, note: 'Vinculado a auth.users e PerfisUsuarios']
+  nome varchar(120) [not null]
+  cpf varchar(14) [unique, not null]
+  email varchar(150) [unique, not null]
+  telefone varchar(20) [not null]
+  endereco_padrao varchar(255)
+  ponto_referencia_padrao varchar(150, note: 'Ex: Marina da Gloria, Pier B, Vaga 14')
+  latitude decimal(9,6)
+  longitude decimal(9,6)
+  created_at datetime [default: `now()`]
+}
+
+Table Entregadores {
+  id integer [pk, increment]
+  usuario_id uuid [unique, note: 'Vinculado a auth.users']
+  posto_id integer [not null]
+  nome varchar(120) [not null]
+  cpf varchar(14) [unique, not null]
+  telefone varchar(20) [not null]
+  veiculo_descricao varchar(80) [not null, note: 'Furgao / Utilitario com tanques homologados']
+  placa varchar(10) [not null]
+  status varchar(30) [not null, default: 'DISPONIVEL', note: 'DISPONIVEL, EM_ROTA, INDISPONIVEL']
+  ultima_latitude decimal(9,6)
+  ultima_longitude decimal(9,6)
+  ultima_posicao_em datetime
+  created_at datetime [default: `now()`]
+}
+
+Table Combustiveis {
+  id integer [pk, increment]
+  nome varchar(50) [unique, not null, note: 'Gasolina Comum, Gasolina Podium, Diesel Nautico S10, Etanol']
+  unidade_medida varchar(10) [not null, default: 'LITROS']
+}
+
+Table Pedidos {
+  id integer [pk, increment]
+  cliente_id integer [not null]
+  posto_id integer [not null]
+  status varchar(30) [not null, default: 'PENDENTE', note: 'PENDENTE, CONFIRMADO_POSTO, EM_PREPARACAO, EM_TRANSPORTE, CONCLUIDO, CANCELADO']
+  valor_total decimal(12,2) [not null, default: 0.00]
+  endereco_entrega varchar(255) [not null]
+  ponto_referencia varchar(150, note: 'Ex: Pier B, vaga 14 - Lancha Marlin')
+  tipo_local varchar(30) [not null, default: 'MARINA', note: 'MARINA, CONDOMINIO, CHACARA, RODOVIA, RESIDENCIA, OUTRO']
+  instrucoes_adicionais text
+  destino_latitude decimal(9,6) [not null]
+  destino_longitude decimal(9,6) [not null]
+  data_pedido datetime [default: `now()`]
+}
+
+Table ItensPedido {
+  id integer [pk, increment]
+  pedido_id integer [not null]
+  combustivel_id integer [not null]
+  quantidade_litros decimal(10,2) [not null]
+  valor_unitario decimal(8,3) [not null]
+  subtotal decimal(12,2) [not null]
+}
+
+Table Entregas {
+  id integer [pk, increment]
+  pedido_id integer [unique, not null]
+  entregador_id integer [not null]
+  ordem_na_fila integer [not null, default: 1, note: 'Posicao da entrega na fila do entregador']
+  status_entrega varchar(35) [not null, default: 'AGENDADO', note: 'AGENDADO, EM_OUTRA_ENTREGA, PREPARANDO_POSTO, A_CAMINHO, NO_LOCAL_ABASTECENDO, RETORNANDO_AO_POSTO, CONCLUIDO, FALHA_CANCELADO']
+  data_inicio_preparo datetime
+  data_saida_posto datetime
+  data_chegada_local datetime
+  data_inicio_retorno datetime
+  data_retorno_posto datetime
+  tempo_estimado_atendimento_min integer [default: 20]
+
+  indexes {
+    (entregador_id, status_entrega, ordem_na_fila)
+  }
+}
+
+Table PrevisoesIA {
+  id bigint [pk, increment]
+  entrega_id integer [not null]
+  eta_previsto datetime [not null]
+  tempo_espera_liberacao_minutos integer [default: 0, note: 'Tempo restante na entrega anterior + retorno a base']
+  tempo_preparo_posto_minutos integer [default: 12, note: 'Tempo de recarga no posto']
+  tempo_viagem_cliente_minutos integer [default: 0, note: 'Deslocamento posto -> cliente']
+  confianca_score decimal(5,4) [default: 0.9500]
+  risco_atraso boolean [default: false]
+  fator_principal_risco varchar(100)
+  mensagem_humanizada text [not null, note: 'Texto humanizado gerado pela IA para o app civil']
+  criado_em datetime [default: `now()`]
+
+  indexes {
+    (entrega_id, criado_em)
+  }
+}
+
+Table HistoricoStatusEntrega {
+  id bigint [pk, increment]
+  entrega_id integer [not null]
+  status_anterior varchar(35)
+  status_novo varchar(35) [not null]
+  descricao_motivo varchar(255)
+  origem_alteracao varchar(30) [not null, default: 'ENTREGADOR_APP', note: 'ENTREGADOR_APP, POSTO_WEB, SISTEMA_IA, CLIENTE_APP']
+  latitude_momento decimal(9,6)
+  longitude_momento decimal(9,6)
+  criado_em datetime [not null, default: `now()`]
+
+  indexes {
+    (entrega_id, criado_em)
+  }
+}
+
+Ref: Clientes.usuario_id - PerfisUsuarios.id
+Ref: Entregadores.usuario_id - PerfisUsuarios.id
+Ref: Entregadores.posto_id > Postos.id
+Ref: Pedidos.cliente_id > Clientes.id
+Ref: Pedidos.posto_id > Postos.id
+Ref: ItensPedido.pedido_id > Pedidos.id
+Ref: ItensPedido.combustivel_id > Combustiveis.id
+Ref: Entregas.pedido_id - Pedidos.id
+Ref: Entregas.entregador_id > Entregadores.id
+Ref: PrevisoesIA.entrega_id > Entregas.id
+Ref: HistoricoStatusEntrega.entrega_id > Entregas.id
