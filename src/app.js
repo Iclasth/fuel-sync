@@ -1,10 +1,12 @@
 const express = require('express');
+const cors = require('cors');
 const { swaggerUi, swaggerSpec } = require('./config/swagger.js');
 const errorHandler = require('./common/middlewares/errorHandler.js');
 
 const app = express();
 
-// Middleware para parsing de JSON
+// Middlewares
+app.use(cors());
 app.use(express.json());
 
 // Documentação Swagger UI
