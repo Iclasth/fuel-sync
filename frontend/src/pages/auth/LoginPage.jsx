@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Fuel, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2, ArrowRight } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 
@@ -178,7 +178,17 @@ export const LoginPage = () => {
             </button>
           </form>
 
-          <div className="pt-2 text-center">
+          {/* NOVA ÁREA DE REDIRECIONAMENTO PARA CADASTRO */}
+          <div className="pt-6 mt-6 text-center border-t border-slate-800/80">
+            <p className="text-sm text-slate-400">
+              Não possui conta?{' '}
+              <Link to="/cadastro" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                Cadastre-se aqui
+              </Link>
+            </p>
+          </div>
+
+          <div className="pt-4 text-center">
             <p className="text-xs text-slate-500">
               Precisa de acesso de administrador ou parceiro? Entre em contato com a equipe de operações.
             </p>
