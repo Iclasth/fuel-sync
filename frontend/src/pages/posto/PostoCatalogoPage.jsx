@@ -46,7 +46,7 @@ export const PostoCatalogoPage = () => {
       try {
         const [postosRes, catRes] = await Promise.allSettled([
           api.get('/api/v1/stations'),
-          api.get('/api/v1/catalog'),
+          api.get('/api/v1/catalog/fuels'),
         ]);
 
         if (postosRes.status === 'fulfilled' && Array.isArray(postosRes.value.data)) {

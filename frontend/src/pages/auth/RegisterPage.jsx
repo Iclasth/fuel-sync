@@ -77,7 +77,7 @@ export const RegisterPage = () => {
       <header className="bg-white border-b border-gray-200 py-4 px-8 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl font-bold tracking-tight text-gray-900">
-            Fuel<span className="text-blue-600">Sync</span>
+            NAV<span className="text-blue-600">ROTAS</span>
           </span>
           <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
             Enterprise
@@ -93,7 +93,7 @@ export const RegisterPage = () => {
               Criar nova conta
             </h1>
             <p className="text-sm text-gray-500 mt-1">
-              Cadastre-se na rede FuelSync para realizar pedidos e monitorar entregas
+              Cadastre-se na rede NAVROTAS para realizar pedidos e monitorar entregas
             </p>
           </div>
 

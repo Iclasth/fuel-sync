@@ -31,7 +31,7 @@ describe('PostoCatalogoPage', () => {
           data: [{ id: 1, nome_fantasia: 'Auto Posto Imperial' }],
         });
       }
-      if (url === '/api/v1/catalog') {
+      if (url === '/api/v1/catalog' || url === '/api/v1/catalog/fuels') {
         return Promise.resolve({
           data: [{ id: 1, nome: 'Gasolina Comum', tipo: 'COMUM' }],
         });

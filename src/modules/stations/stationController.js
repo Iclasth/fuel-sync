@@ -30,11 +30,20 @@ const getStationById = async (req, res, next) => {
     }
 };
 
+const getMyStation = async (req, res, next) => {
+    try {
+        const station = await stationService.getMyStation(req.user);
+        return res.status(200).json(station);
+    } catch (err) {
+        next(err);
+    }
+};
+
 const updateStation = async (req, res, next) => {
     try {
         const { id } = req.params;
         const validatedData = validateUpdateStation(req.body);
-        const updated = await stationService.updateStation(Number(id), validatedData);
+        const updated = await stationService.updateStation(Number(id), validatedData, req.user);
         return res.status(200).json(updated);
     } catch (err) {
         next(err);
@@ -114,6 +123,7 @@ module.exports = {
     createStation,
     getStations,
     getStationById,
+    getMyStation,
     updateStation,
     getStationFuels,
     createStationFuel,

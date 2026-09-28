@@ -5,9 +5,9 @@ const swaggerDefinition =
 {
     openapi: '3.0.0',
     info: {
-        title: 'Fuel Sync API',
+        title: 'NAVROTAS API',
         version: '1.0.0',
-        description: 'API para sincronização de dados de combustível',
+        description: 'API da plataforma NAVROTAS para gestão e distribuição de combustíveis náuticos e terrestres',
     },
     servers: [
         {

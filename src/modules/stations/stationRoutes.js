@@ -79,6 +79,31 @@ router.get(
 
 /**
  * @openapi
+ * /api/v1/stations/me:
+ *   get:
+ *     summary: Obtém os dados e métricas do posto vinculado ao administrador logado
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dados do posto do administrador com métricas operacionais
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado (apenas posto_admin e admin_geral)
+ *       404:
+ *         description: Nenhum posto vinculado ao perfil
+ */
+router.get(
+    '/me',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.getMyStation
+);
+
+/**
+ * @openapi
  * /api/v1/stations/{id}:
  *   get:
  *     summary: Obtém detalhes de um posto pelo ID
@@ -127,14 +152,14 @@ router.get(
  *       401:
  *         description: Não autenticado
  *       403:
- *         description: Não autorizado (apenas posto_admin)
+ *         description: Não autorizado (posto_admin ou admin_geral)
  *       404:
  *         description: Posto não encontrado
  */
 router.put(
     '/:id',
     authMiddleware,
-    roleMiddleware([UserRoles.POSTO_ADMIN]),
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
     stationController.updateStation
 );
 

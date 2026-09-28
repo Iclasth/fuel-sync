@@ -100,4 +100,50 @@ describe('Unit: Station Pricing and Multi-tenant Administration', () => {
             expect(result).toEqual(mockRecord);
         });
     });
+
+    describe('getMyStation', () => {
+        it('deve lançar erro 401 se usuário não for fornecido', async () => {
+            await expect(stationService.getMyStation(null)).rejects.toThrow(/Não autenticado/i);
+        });
+
+        it('deve lançar erro 403 se usuário for cliente', async () => {
+            await expect(stationService.getMyStation({ id: 'cli-1', role: 'cliente' })).rejects.toThrow(/Acesso restrito/i);
+        });
+
+        it('deve lançar erro 404 se posto_admin não tiver vínculo', async () => {
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({ data: [], error: null })
+                })
+            });
+
+            await expect(stationService.getMyStation({ id: 'usr-sem-posto', role: 'posto_admin' })).rejects.toThrow(
+                /Nenhum posto de abastecimento vinculado ao seu perfil/i
+            );
+        });
+
+        it('deve retornar posto vinculado e stats para posto_admin', async () => {
+            // 1. Link
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({ data: [{ user_id: 'usr-1', posto_id: 10 }], error: null })
+                })
+            });
+
+            // 2. Posto
+            const mockStation = { id: 10, nome_fantasia: 'Posto Estrela', cnpj: '11222333000181' };
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockStation, error: null })
+                    })
+                })
+            });
+
+            const result = await stationService.getMyStation({ id: 'usr-1', role: 'posto_admin' });
+            expect(result.id).toBe(10);
+            expect(result.nome_fantasia).toBe('Posto Estrela');
+            expect(result).toHaveProperty('stats');
+        });
+    });
 });
