@@ -33,8 +33,13 @@ const getOrderById = async (req, res, next) => {
 const updateOrderStatus = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const validStatus = validateUpdateOrderStatus(req.body);
-        const updated = await orderService.updateOrderStatus(id, validStatus);
+        const validStatusData = validateUpdateOrderStatus(req.body);
+        const updated = await orderService.updateOrderStatus(
+            id,
+            validStatusData.status,
+            validStatusData.entregador_id,
+            req.user
+        );
         return res.status(200).json(updated);
     } catch (err) {
         next(err);

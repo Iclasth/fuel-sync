@@ -48,18 +48,8 @@ export const PostoEntregadoresPage = () => {
       setEntregadores(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error('Erro ao carregar entregadores:', err);
-      // Fallback
-      setEntregadores([
-        {
-          id: 1,
-          nome: 'Carlos Santos (Operador Náutico)',
-          cpf: '52998224725',
-          telefone: '(11) 98765-4321',
-          veiculo_descricao: 'Furgão com Tanque Certificado INMETRO',
-          placa: 'BRA2E19',
-          status: 'DISPONIVEL',
-        },
-      ]);
+      setMensagemErro('Não foi possível carregar a lista de entregadores do posto.');
+      setEntregadores([]);
     } finally {
       setIsLoading(false);
     }

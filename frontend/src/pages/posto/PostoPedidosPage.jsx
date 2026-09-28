@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Layers,
   Search,
@@ -12,6 +13,7 @@ import {
   Eye,
   XCircle,
   RefreshCw,
+  UserCheck,
 } from 'lucide-react';
 import AppLayout from '../../components/layout/AppLayout';
 import api from '../../services/api';
@@ -37,6 +39,7 @@ const STATUS_BADGES = {
 
 export const PostoPedidosPage = () => {
   const [pedidos, setPedidos] = useState([]);
+  const [entregadores, setEntregadores] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [termoBusca, setTermoBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('TODOS');
@@ -44,6 +47,11 @@ export const PostoPedidosPage = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [mensagemErro, setMensagemErro] = useState('');
+
+  // Estado para Modal de Despacho com Seleção de Entregador
+  const [modalDespachoAberto, setModalDespachoAberto] = useState(false);
+  const [pedidoParaDespachar, setPedidoParaDespachar] = useState(null);
+  const [entregadorSelecionado, setEntregadorSelecionado] = useState('');
 
   const carregarPedidos = async () => {
     setIsLoading(true);
@@ -59,9 +67,58 @@ export const PostoPedidosPage = () => {
     }
   };
 
+  const carregarEntregadores = async () => {
+    try {
+      const res = await api.get('/api/v1/couriers');
+      const list = Array.isArray(res.data) ? res.data : [];
+      setEntregadores(list);
+      if (list.length > 0) {
+        setEntregadorSelecionado(String(list[0].id));
+      }
+    } catch (err) {
+      console.error('Erro ao carregar entregadores:', err);
+    }
+  };
+
   useEffect(() => {
     carregarPedidos();
+    carregarEntregadores();
   }, []);
+
+  const abrirModalDespacho = (pedido) => {
+    setPedidoParaDespachar(pedido);
+    if (entregadores.length > 0) {
+      setEntregadorSelecionado(String(entregadores[0].id));
+    }
+    setModalDespachoAberto(true);
+  };
+
+  const handleConfirmarDespacho = async (e) => {
+    e.preventDefault();
+    if (!pedidoParaDespachar || !entregadorSelecionado) return;
+
+    setIsUpdating(true);
+    setMensagemSucesso('');
+    setMensagemErro('');
+
+    try {
+      await api.patch(`/api/v1/orders/${pedidoParaDespachar.id}/status`, {
+        status: 'EM_TRANSPORTE',
+        entregador_id: Number(entregadorSelecionado),
+      });
+      setMensagemSucesso(`Pedido #${pedidoParaDespachar.id} despachado com sucesso com o entregador selecionado!`);
+      setTimeout(() => setMensagemSucesso(''), 3500);
+      setModalDespachoAberto(false);
+      setPedidoParaDespachar(null);
+      await carregarPedidos();
+      await carregarEntregadores();
+    } catch (err) {
+      console.error('Erro ao despachar pedido:', err);
+      setMensagemErro(err.response?.data?.error || 'Erro ao despachar pedido. Verifique o entregador selecionado.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   const handleUpdateStatus = async (orderId, novoStatus) => {
     setIsUpdating(true);
@@ -216,11 +273,21 @@ export const PostoPedidosPage = () => {
                           R$ {Number(p.valor_total).toFixed(2)}
                         </td>
                         <td className="py-3.5 px-4">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${badgeClass}`}
-                          >
-                            {p.status}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${badgeClass}`}
+                            >
+                              {p.status}
+                            </span>
+                            {(p.entregador?.nome || p.entregador_id) && (
+                              <span className="inline-flex items-center gap-1 text-[11px] text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200">
+                                <Truck className="w-3 h-3 text-sky-600 shrink-0" />
+                                <span className="truncate max-w-[130px]">
+                                  {p.entregador?.nome || entregadores.find(e => e.id === p.entregador_id)?.nome || `ID #${p.entregador_id}`}
+                                </span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3.5 px-4 text-right">
                           <div className="inline-flex items-center justify-end gap-1.5 flex-wrap">
@@ -255,7 +322,7 @@ export const PostoPedidosPage = () => {
 
                             {p.status === 'EM_PREPARACAO' && (
                               <button
-                                onClick={() => handleUpdateStatus(p.id, 'EM_TRANSPORTE')}
+                                onClick={() => abrirModalDespacho(p)}
                                 disabled={isUpdating}
                                 className="px-2.5 py-1.5 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold rounded shadow-sm transition-colors cursor-pointer"
                               >
@@ -291,6 +358,95 @@ export const PostoPedidosPage = () => {
           </div>
         </div>
 
+        {/* Modal de Despacho com Seleção de Entregador */}
+        {modalDespachoAberto && pedidoParaDespachar && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-5 h-5 text-sky-600" />
+                  <h3 className="text-base font-bold text-gray-900">
+                    Despachar Pedido #{pedidoParaDespachar.id}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setModalDespachoAberto(false);
+                    setPedidoParaDespachar(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConfirmarDespacho} className="space-y-4">
+                <div className="space-y-2 text-xs">
+                  <div className="bg-gray-50 p-3 rounded-lg space-y-1">
+                    <p className="text-gray-600">
+                      Destino: <strong className="text-gray-900">{pedidoParaDespachar.endereco_entrega}</strong>
+                    </p>
+                    <p className="text-gray-600">
+                      Valor Total: <strong className="text-gray-900">R$ {Number(pedidoParaDespachar.valor_total).toFixed(2)}</strong>
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="select-entregador-modal" className="block font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                      Entregador Responsável *
+                    </label>
+
+                    {entregadores.length === 0 ? (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-xs">
+                        <p className="font-semibold">Nenhum entregador cadastrado no posto.</p>
+                        <p className="mt-1">
+                          Acesse <Link to="/posto/entregadores" className="underline font-bold">Equipe de Entregadores</Link> para credenciar um operador antes de despachar.
+                        </p>
+                      </div>
+                    ) : (
+                      <select
+                        id="select-entregador-modal"
+                        value={entregadorSelecionado}
+                        onChange={(e) => setEntregadorSelecionado(e.target.value)}
+                        className="w-full px-3 py-2 min-h-[42px] bg-white border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 cursor-pointer"
+                        required
+                      >
+                        <option value="" disabled>Selecione um entregador...</option>
+                        {entregadores.map((entregador) => (
+                          <option key={entregador.id} value={entregador.id}>
+                            {entregador.nome} {entregador.placa ? `(${entregador.placa})` : ''} — {entregador.status || 'DISPONIVEL'}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModalDespachoAberto(false);
+                      setPedidoParaDespachar(null);
+                    }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdating || entregadores.length === 0 || !entregadorSelecionado}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+                  >
+                    {isUpdating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Truck className="w-3.5 h-3.5" />}
+                    <span>Confirmar Despacho</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Modal de Detalhes do Pedido */}
         {pedidoSelecionado && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -320,6 +476,27 @@ export const PostoPedidosPage = () => {
                     Lat: {pedidoSelecionado.destino_latitude}, Lon: {pedidoSelecionado.destino_longitude}
                   </p>
                 </div>
+
+                {(pedidoSelecionado.entregador?.nome || pedidoSelecionado.entregador_id) && (
+                  <div>
+                    <span className="font-semibold text-gray-500 uppercase tracking-wider block">
+                      Entregador Responsável
+                    </span>
+                    <p className="text-gray-900 text-sm mt-0.5 font-medium flex items-center gap-1.5">
+                      <Truck className="w-4 h-4 text-sky-600" />
+                      <span>
+                        {pedidoSelecionado.entregador?.nome ||
+                          entregadores.find((e) => e.id === pedidoSelecionado.entregador_id)?.nome ||
+                          `Entregador ID #${pedidoSelecionado.entregador_id}`}
+                      </span>
+                      {pedidoSelecionado.entregador?.placa && (
+                        <span className="font-mono text-xs text-gray-500">
+                          ({pedidoSelecionado.entregador.placa})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
 
                 {pedidoSelecionado.instrucoes_adicionais && (
                   <div>

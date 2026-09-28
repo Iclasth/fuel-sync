@@ -133,4 +133,40 @@ describe('OrderTrackingPage', () => {
       );
     });
   });
+
+  it('exibe informações do entregador designado quando disponível', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/v1/orders') {
+        return Promise.resolve({ data: [{ id: 1, status: 'EM_TRANSPORTE' }] });
+      }
+      if (url === '/api/v1/orders/1') {
+        return Promise.resolve({
+          data: {
+            id: 1,
+            status: 'EM_TRANSPORTE',
+            endereco_entrega: 'Marina da Glória',
+            valor_total: 1200.0,
+            entregador_id: 5,
+            entregador: {
+              id: 5,
+              nome: 'Carlos Santos (Operador Náutico)',
+              telefone: '(11) 98765-4321',
+              veiculo_descricao: 'Furgão Utilitário',
+              placa: 'BRA2E19',
+            },
+            itens_pedido: [],
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Carlos Santos (Operador Náutico)')).toBeInTheDocument();
+      expect(screen.getByText(/BRA2E19/)).toBeInTheDocument();
+      expect(screen.getByText('(11) 98765-4321')).toBeInTheDocument();
+    });
+  });
 });

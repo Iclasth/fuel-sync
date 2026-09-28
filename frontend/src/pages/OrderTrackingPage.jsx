@@ -14,6 +14,7 @@ import {
   Fuel,
   Ban,
   Radio,
+  Phone,
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import api from '../services/api';
@@ -378,6 +379,42 @@ export const OrderTrackingPage = () => {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Dados do Entregador Responsável */}
+            {(activeOrder.entregador || activeOrder.entregador_id) && (
+              <div className="p-4 bg-sky-50 border border-sky-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider block">
+                      Entregador Responsável
+                    </span>
+                    <h4 className="text-sm font-bold text-gray-900">
+                      {activeOrder.entregador?.nome || `Entregador ID #${activeOrder.entregador_id}`}
+                    </h4>
+                    <p className="text-xs text-gray-600">
+                      {activeOrder.entregador?.veiculo_descricao || 'Veículo homologado'}
+                      {activeOrder.entregador?.placa ? ` • Placa: ${activeOrder.entregador.placa}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                {activeOrder.entregador?.telefone && (
+                  <div className="sm:text-right text-xs">
+                    <span className="text-gray-500 block mb-0.5">Contato do Operador</span>
+                    <a
+                      href={`tel:${activeOrder.entregador.telefone}`}
+                      className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:text-sky-900 underline"
+                    >
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>{activeOrder.entregador.telefone}</span>
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
