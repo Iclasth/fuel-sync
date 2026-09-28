@@ -19,6 +19,7 @@ import EnderecosPage from '../pages/EnderecosPage';
 import PostoPedidosPage from '../pages/posto/PostoPedidosPage';
 import PostoCatalogoPage from '../pages/posto/PostoCatalogoPage';
 import PostoEntregadoresPage from '../pages/posto/PostoEntregadoresPage';
+import PostoDadosPage from '../pages/posto/PostoDadosPage';
 
 // Módulos de Administração Geral (admin_geral)
 import AdminPostosPage from '../pages/admin/AdminPostosPage';
@@ -85,9 +86,9 @@ export const AppRoutes = () => {
       <Route
         path="/comprar"
         element={
-          <ProtectedRoute>
+          <RoleRoute allowedRoles={['cliente', 'admin_geral']}>
             <ComprarCombustivelPage />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
@@ -103,9 +104,9 @@ export const AppRoutes = () => {
       <Route
         path="/enderecos"
         element={
-          <ProtectedRoute>
+          <RoleRoute allowedRoles={['cliente', 'admin_geral']}>
             <EnderecosPage />
-          </ProtectedRoute>
+          </RoleRoute>
         }
       />
 
@@ -133,6 +134,15 @@ export const AppRoutes = () => {
         element={
           <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
             <PostoCatalogoPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/dados"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoDadosPage />
           </RoleRoute>
         }
       />

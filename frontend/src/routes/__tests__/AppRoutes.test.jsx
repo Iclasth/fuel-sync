@@ -85,6 +85,26 @@ describe('AppRoutes', () => {
     expect(screen.getByTestId('login-page')).toBeInTheDocument();
   });
 
+  it('redirects entregador accessing /comprar to / (HomePage)', () => {
+    renderWithRoute('/comprar', {
+      isAuthenticated: true,
+      isLoading: false,
+      user: { id: '5', role: 'entregador' },
+    });
+    expect(screen.getByTestId('home-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('comprar-page')).not.toBeInTheDocument();
+  });
+
+  it('redirects entregador accessing /enderecos to / (HomePage)', () => {
+    renderWithRoute('/enderecos', {
+      isAuthenticated: true,
+      isLoading: false,
+      user: { id: '5', role: 'entregador' },
+    });
+    expect(screen.getByTestId('home-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('enderecos-page')).not.toBeInTheDocument();
+  });
+
   it('redirects invalid routes to / which redirects to /login if unauthenticated', () => {
     renderWithRoute('/non-existent-route', { isAuthenticated: false, isLoading: false });
     expect(screen.getByTestId('login-page')).toBeInTheDocument();

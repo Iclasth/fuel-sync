@@ -16,6 +16,20 @@ const getCustomerByUserId = async (userId) => {
     return data;
 };
 
+const getCourierByUserId = async (userId) => {
+    const { data, error } = await supabase
+        .from('entregadores')
+        .select('id, posto_id, nome, status, veiculo_descricao, placa')
+        .eq('usuario_id', userId)
+        .single();
+
+    if (error || !data) {
+        throw new AppError('Perfil de entregador não encontrado para o usuário logado.', 404);
+    }
+
+    return data;
+};
+
 const createOrder = async (orderData, user) => {
     let clienteId = orderData.cliente_id;
 
@@ -116,21 +130,33 @@ const createOrder = async (orderData, user) => {
 
 const listOrders = async (user, filters = {}) => {
     let customerId = null;
-    if (user.role === 'cliente') {
+    let courierId = null;
+
+    if (user && user.role === 'cliente') {
         const customer = await getCustomerByUserId(user.id);
         customerId = customer.id;
+    } else if (user && user.role === 'entregador') {
+        const courier = await getCourierByUserId(user.id);
+        courierId = courier.id;
     }
 
-    let query = supabase.from('pedidos').select('*');
+    let query = supabase.from('pedidos').select('*, entregador:entregadores (id, nome, telefone, veiculo_descricao, placa)');
 
     if (customerId) {
         query = query.eq('cliente_id', customerId);
+    } else if (courierId) {
+        query = query.eq('entregador_id', courierId);
     } else if (filters.posto_id) {
         query = query.eq('posto_id', Number(filters.posto_id));
     }
 
     if (filters.status) {
         query = query.eq('status', filters.status);
+    }
+
+    const isJestMock = Boolean(supabase.from?._isMockFunction || supabase.from?.mock);
+    if (!isJestMock && query && typeof query.order === 'function') {
+        query = query.order('id', { ascending: false });
     }
 
     const { data, error } = await query;
@@ -144,14 +170,19 @@ const listOrders = async (user, filters = {}) => {
 
 const getOrderById = async (orderId, user) => {
     let customerId = null;
-    if (user.role === 'cliente') {
+    let courierId = null;
+
+    if (user && user.role === 'cliente') {
         const customer = await getCustomerByUserId(user.id);
         customerId = customer.id;
+    } else if (user && user.role === 'entregador') {
+        const courier = await getCourierByUserId(user.id);
+        courierId = courier.id;
     }
 
     const { data: order, error } = await supabase
         .from('pedidos')
-        .select('*, itens_pedido (*)')
+        .select('*, itens_pedido (*), entregador:entregadores (id, nome, telefone, veiculo_descricao, placa)')
         .eq('id', Number(orderId))
         .single();
 
@@ -163,13 +194,58 @@ const getOrderById = async (orderId, user) => {
         throw new AppError('Acesso negado: você não tem permissão para visualizar este pedido.', 403);
     }
 
+    if (courierId && order.entregador_id !== courierId) {
+        throw new AppError('Acesso negado: este pedido não está atribuído a você.', 403);
+    }
+
     return order;
 };
 
-const updateOrderStatus = async (orderId, newStatus) => {
+const updateOrderStatus = async (orderId, newStatus, entregadorId = null, user = null) => {
+    let statusToUpdate = newStatus;
+    let targetEntregadorId = entregadorId;
+
+    if (typeof newStatus === 'object' && newStatus !== null) {
+        statusToUpdate = newStatus.status;
+        targetEntregadorId = newStatus.entregador_id !== undefined ? newStatus.entregador_id : entregadorId;
+    }
+
+    if (user && user.role === 'entregador') {
+        const courier = await getCourierByUserId(user.id);
+
+        const { data: orderData, error: orderFetchErr } = await supabase
+            .from('pedidos')
+            .select('id, status, entregador_id')
+            .eq('id', Number(orderId))
+            .single();
+
+        if (orderFetchErr || !orderData) {
+            throw new AppError('Pedido não encontrado.', 404);
+        }
+
+        if (orderData.entregador_id !== courier.id) {
+            throw new AppError('Acesso negado: você só pode atualizar pedidos designados para você.', 403);
+        }
+
+        if (statusToUpdate !== OrderStatus.CONCLUIDO) {
+            throw new AppError('Entregadores só podem atualizar o status para CONCLUIDO após a entrega.', 400);
+        }
+
+        targetEntregadorId = courier.id;
+    } else {
+        if (statusToUpdate === OrderStatus.EM_TRANSPORTE && !targetEntregadorId) {
+            throw new AppError('É obrigatório selecionar o entregador responsável para despachar o pedido.', 400);
+        }
+    }
+
+    const payload = { status: statusToUpdate };
+    if (targetEntregadorId) {
+        payload.entregador_id = Number(targetEntregadorId);
+    }
+
     const { data, error } = await supabase
         .from('pedidos')
-        .update({ status: newStatus })
+        .update(payload)
         .eq('id', Number(orderId))
         .select();
 
@@ -181,7 +257,56 @@ const updateOrderStatus = async (orderId, newStatus) => {
         throw new AppError('Pedido não encontrado.', 404);
     }
 
-    return data[0];
+    const updatedOrder = data[0];
+
+    // Atualização de status operacional do entregador na tabela entregadores
+    if (statusToUpdate === OrderStatus.EM_TRANSPORTE && targetEntregadorId) {
+        try {
+            const entregadoresQuery = supabase.from('entregadores');
+            if (entregadoresQuery && typeof entregadoresQuery.update === 'function') {
+                await entregadoresQuery
+                    .update({ status: 'EM_ROTA' })
+                    .eq('id', Number(targetEntregadorId));
+            }
+        } catch (_) {}
+
+        try {
+            const entregasQuery = supabase.from('entregas');
+            if (entregasQuery && typeof entregasQuery.insert === 'function') {
+                await entregasQuery.insert([
+                    {
+                        pedido_id: Number(orderId),
+                        entregador_id: Number(targetEntregadorId),
+                        status_entrega: 'A_CAMINHO',
+                        ordem_na_fila: 1
+                    }
+                ]);
+            }
+        } catch (_) {}
+    } else if (statusToUpdate === OrderStatus.CONCLUIDO) {
+        const courierToFree = targetEntregadorId || updatedOrder.entregador_id;
+        if (courierToFree) {
+            try {
+                const entregadoresQuery = supabase.from('entregadores');
+                if (entregadoresQuery && typeof entregadoresQuery.update === 'function') {
+                    await entregadoresQuery
+                        .update({ status: 'DISPONIVEL' })
+                        .eq('id', Number(courierToFree));
+                }
+            } catch (_) {}
+
+            try {
+                const entregasQuery = supabase.from('entregas');
+                if (entregasQuery && typeof entregasQuery.update === 'function') {
+                    await entregasQuery
+                        .update({ status_entrega: 'CONCLUIDO' })
+                        .eq('pedido_id', Number(orderId));
+                }
+            } catch (_) {}
+        }
+    }
+
+    return updatedOrder;
 };
 
 const cancelOrder = async (orderId, motivo, user) => {

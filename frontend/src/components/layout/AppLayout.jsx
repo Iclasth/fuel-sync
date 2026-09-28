@@ -51,6 +51,7 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
   // Station admin navigation items
   const stationAdminNav = [
     { to: '/', label: 'Visão Geral', icon: Home },
+    { to: '/posto/dados', label: 'Meu Posto', icon: Building2 },
     { to: '/posto/precos', label: 'Tabela de Preços', icon: DollarSign },
     { to: '/posto/pedidos', label: 'Fila de Pedidos', icon: Layers },
     { to: '/posto/entregadores', label: 'Entregadores', icon: Truck },
@@ -63,9 +64,16 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
     { to: '/admin/auditoria', label: 'Auditoria de Preços', icon: Shield },
   ];
 
+  // Courier navigation items
+  const courierNav = [
+    { to: '/', label: 'Minhas Entregas', icon: Truck },
+    { to: '/rastreio', label: 'Rastreamento', icon: Clock },
+  ];
+
   const getNavItems = () => {
     if (user?.role === 'admin_geral') return generalAdminNav;
     if (user?.role === 'posto_admin') return stationAdminNav;
+    if (user?.role === 'entregador') return courierNav;
     return customerNav;
   };
 
@@ -79,7 +87,7 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-800">
           <div className="flex items-center gap-2">
             <span className="text-lg font-bold tracking-tight text-white">
-              Fuel<span className="text-blue-500">Sync</span>
+              NAV<span className="text-blue-500">ROTAS</span>
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
               {getRoleLabel(user?.role)}
@@ -135,7 +143,7 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
         <header className="md:hidden flex items-center justify-between h-14 px-4 bg-gray-900 text-white border-b border-gray-800 shrink-0">
           <div className="flex items-center gap-2">
             <span className="font-bold tracking-tight text-white">
-              Fuel<span className="text-blue-500">Sync</span>
+              NAV<span className="text-blue-500">ROTAS</span>
             </span>
             <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300">
               {getRoleLabel(user?.role)}
@@ -162,7 +170,7 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
             >
               <div className="flex items-center justify-between pb-4 border-b border-gray-800 mb-4">
                 <span className="text-lg font-bold text-white">
-                  Fuel<span className="text-blue-500">Sync</span>
+                  NAV<span className="text-blue-500">ROTAS</span>
                 </span>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
