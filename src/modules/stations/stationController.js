@@ -89,6 +89,27 @@ const getStationFuelHistory = async (req, res, next) => {
     }
 };
 
+const getStationAdmins = async (req, res, next) => {
+    try {
+        const { stationId } = req.params;
+        const admins = await stationService.getStationAdmins(Number(stationId));
+        return res.status(200).json(admins);
+    } catch (err) {
+        next(err);
+    }
+};
+
+const assignStationAdmin = async (req, res, next) => {
+    try {
+        const { stationId } = req.params;
+        const { user_id } = req.body;
+        const linked = await stationService.assignStationAdmin(Number(stationId), user_id, req.user);
+        return res.status(201).json(linked);
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     createStation,
     getStations,
@@ -97,5 +118,8 @@ module.exports = {
     getStationFuels,
     createStationFuel,
     updateStationFuel,
-    getStationFuelHistory
+    getStationFuelHistory,
+    getStationAdmins,
+    assignStationAdmin
 };
+

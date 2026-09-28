@@ -28,8 +28,16 @@ export const LoginPage = () => {
     setIsLoading(true);
 
     try {
-      await login(email.trim(), password);
-      navigate(from, { replace: true });
+      const userData = await login(email.trim(), password);
+      if (location.state?.from?.pathname) {
+        navigate(location.state.from.pathname, { replace: true });
+      } else if (userData?.role === 'posto_admin') {
+        navigate('/posto/pedidos', { replace: true });
+      } else if (userData?.role === 'admin_geral') {
+        navigate('/admin/postos', { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
     } catch (err) {
       const apiError = err.response?.data?.error;
       const apiDetails = err.response?.data?.details;

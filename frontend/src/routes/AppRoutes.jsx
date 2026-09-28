@@ -1,17 +1,28 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './ProtectedRoute';
+import RoleRoute from './RoleRoute';
 import useAuth from '../hooks/useAuth';
 
 // Páginas de Autenticação
 import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 
-// Módulos Operacionais e de Gestão
+// Módulos Operacionais do Cliente
 import HomePage from '../pages/HomePage';
+import PerfilPage from '../pages/PerfilPage';
 import OrderTrackingPage from '../pages/OrderTrackingPage';
 import ComprarCombustivelPage from '../pages/ComprarCombustivelPage';
 import EnderecosPage from '../pages/EnderecosPage';
+
+// Módulos de Gestão do Posto (posto_admin e admin_geral)
+import PostoPedidosPage from '../pages/posto/PostoPedidosPage';
+import PostoCatalogoPage from '../pages/posto/PostoCatalogoPage';
+import PostoEntregadoresPage from '../pages/posto/PostoEntregadoresPage';
+
+// Módulos de Administração Geral (admin_geral)
+import AdminPostosPage from '../pages/admin/AdminPostosPage';
+import AdminVinculosPage from '../pages/admin/AdminVinculosPage';
 
 export const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -42,7 +53,7 @@ export const AppRoutes = () => {
           </PublicRoute>
         }
       />
-      
+
       <Route
         path="/cadastro"
         element={
@@ -52,12 +63,21 @@ export const AppRoutes = () => {
         }
       />
 
-      {/* Módulos Operacionais Protegidos */}
+      {/* Módulos do Cliente (Protegidos) */}
       <Route
         path="/"
         element={
           <ProtectedRoute>
             <HomePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/perfil"
+        element={
+          <ProtectedRoute>
+            <PerfilPage />
           </ProtectedRoute>
         }
       />
@@ -86,6 +106,62 @@ export const AppRoutes = () => {
           <ProtectedRoute>
             <EnderecosPage />
           </ProtectedRoute>
+        }
+      />
+
+      {/* Módulos de Gestão do Posto (Restrito a posto_admin e admin_geral) */}
+      <Route
+        path="/posto/pedidos"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoPedidosPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/precos"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoCatalogoPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/catalogo"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoCatalogoPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/entregadores"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoEntregadoresPage />
+          </RoleRoute>
+        }
+      />
+
+      {/* Módulos de Administração Geral (Restrito a admin_geral) */}
+      <Route
+        path="/admin/postos"
+        element={
+          <RoleRoute allowedRoles={['admin_geral']}>
+            <AdminPostosPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/admin/vinculos"
+        element={
+          <RoleRoute allowedRoles={['admin_geral']}>
+            <AdminVinculosPage />
+          </RoleRoute>
         }
       />
 

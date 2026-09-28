@@ -29,6 +29,7 @@ const signupCustomer = async ({ name, email, password, cpf, phone }) => {
     try {
         await supabase.from('clientes').insert([
             {
+                usuario_id: data.user.id,
                 nome: name,
                 cpf: cpf,
                 email: email,

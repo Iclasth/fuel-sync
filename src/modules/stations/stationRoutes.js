@@ -246,4 +246,65 @@ router.get(
     stationController.getStationFuelHistory
 );
 
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/admins:
+ *   get:
+ *     summary: Lista administradores vinculados ao posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de administradores do posto
+ */
+router.get(
+    '/:stationId/admins',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.getStationAdmins
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/admins:
+ *   post:
+ *     summary: Vincula um usuário posto_admin ao posto físico
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [user_id]
+ *             properties:
+ *               user_id:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Administrador vinculado com sucesso
+ */
+router.post(
+    '/:stationId/admins',
+    authMiddleware,
+    roleMiddleware([UserRoles.ADMIN_GERAL]),
+    stationController.assignStationAdmin
+);
+
 module.exports = router;
+

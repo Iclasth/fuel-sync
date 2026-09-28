@@ -1,11 +1,38 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Fuel, MapPin, Clock, ShieldCheck, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Fuel, MapPin, Clock, ShieldCheck, CheckCircle2, ArrowRight, Loader2, Package } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
+import api from '../services/api';
 import AppLayout from '../components/layout/AppLayout';
 
 export const HomePage = () => {
   const { user } = useAuth();
+  const [latestOrder, setLatestOrder] = useState(null);
+  const [isLoadingOrder, setIsLoadingOrder] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLatestOrder = async () => {
+      try {
+        const response = await api.get('/orders');
+        if (isMounted && Array.isArray(response.data) && response.data.length > 0) {
+          const sorted = [...response.data].sort((a, b) => b.id - a.id);
+          setLatestOrder(sorted[0]);
+        }
+      } catch (err) {
+        // Silencioso caso não haja pedidos ainda
+      } finally {
+        if (isMounted) setIsLoadingOrder(false);
+      }
+    };
+
+    fetchLatestOrder();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const getRoleBadge = (role) => {
     switch (role) {
@@ -61,6 +88,44 @@ export const HomePage = () => {
           </div>
         </section>
 
+        {/* Card de Pedido em Andamento (Dinamismo Real) */}
+        {latestOrder && (
+          <section className="bg-white border border-blue-200 rounded-lg p-5 shadow-sm bg-gradient-to-r from-blue-50/30 to-white">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-lg bg-blue-100 text-blue-700 shrink-0 mt-0.5">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">
+                      Último Pedido (#{latestOrder.id})
+                    </span>
+                    <span className="px-2 py-0.5 text-xs font-semibold rounded bg-blue-100 text-blue-800">
+                      {latestOrder.status}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900 mt-1">
+                    Destino: {latestOrder.endereco_entrega}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Valor total: R$ {Number(latestOrder.valor_total).toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <div>
+                <Link
+                  to={`/rastreio?orderId=${latestOrder.id}`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-blue-700 bg-white border border-blue-200 hover:bg-blue-50 rounded-lg shadow-sm transition-colors"
+                >
+                  <span>Acompanhar entrega</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
         {/* Módulos de Acesso Rápido */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:border-gray-300 transition-colors flex flex-col justify-between">
@@ -70,7 +135,7 @@ export const HomePage = () => {
               </div>
               <h2 className="text-base font-bold text-gray-900">Abastecimento Sob Demanda</h2>
               <p className="text-xs text-gray-500 mt-1">
-                Solicite combustíveis para embarcações ou veículos com cálculo dinâmico de tarifação por posto credenciado.
+                Solicite combustíveis para embarcações ou frotas com cálculo dinâmico de tarifação por posto credenciado.
               </p>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-100">

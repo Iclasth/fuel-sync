@@ -210,7 +210,7 @@ flowchart TD
 
 ## FASE 4: Integração das Páginas do Cliente com a API
 
-### [ ] TASK-4.1: Integração de Login e Cadastro com Persistência Real
+### [x] TASK-4.1: Integração de Login e Cadastro com Persistência Real
 - **Arquivos Alvo:**
   - [`frontend/src/pages/auth/LoginPage.jsx`](frontend/src/pages/auth/LoginPage.jsx)
   - [`frontend/src/pages/auth/RegisterPage.jsx`](frontend/src/pages/auth/RegisterPage.jsx)
@@ -223,7 +223,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-4.2: Integração da Homepage Dinâmica do Cliente
+### [x] TASK-4.2: Integração da Homepage Dinâmica do Cliente
 - **Arquivo Alvo:** [`frontend/src/pages/HomePage.jsx`](frontend/src/pages/HomePage.jsx)
 - **Ações:**
   - Consumir dados do usuário logado via `useAuth()`.
@@ -233,7 +233,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-4.3: Tela de Perfil e Dados Cadastrais (`/perfil`)
+### [x] TASK-4.3: Tela de Perfil e Dados Cadastrais (`/perfil`)
 - **Arquivo Alvo:** `frontend/src/pages/PerfilPage.jsx`
 - **Ações:**
   - Consumir `GET /customers` para recuperar dados do cliente vinculado ao `usuario_id`.
@@ -243,7 +243,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-4.4: Integração da Gestão de Endereços e Locais de Abastecimento (`/enderecos`)
+### [x] TASK-4.4: Integração da Gestão de Endereços e Locais de Abastecimento (`/enderecos`)
 - **Arquivo Alvo:** [`frontend/src/pages/EnderecosPage.jsx`](frontend/src/pages/EnderecosPage.jsx)
 - **Ações:**
   - Eliminar arrays mockados em memória.
@@ -253,7 +253,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-4.5: Integração da Tela de Compra com Preços do Posto (`/comprar`)
+### [x] TASK-4.5: Integração da Tela de Compra com Preços do Posto (`/comprar`)
 - **Arquivo Alvo:** [`frontend/src/pages/ComprarCombustivelPage.jsx`](frontend/src/pages/ComprarCombustivelPage.jsx)
 - **Ações:**
   - Carregar lista de postos homologados via `GET /api/v1/stations`.
@@ -265,7 +265,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-4.6: Integração da Tela de Rastreio com Máquina de Estados (`/rastreio`)
+### [x] TASK-4.6: Integração da Tela de Rastreio com Máquina de Estados (`/rastreio`)
 - **Arquivo Alvo:** [`frontend/src/pages/OrderTrackingPage.jsx`](frontend/src/pages/OrderTrackingPage.jsx)
 - **Ações:**
   - Substituir o enum mockado (`ROTA`, `TRANSITO`, `ENTREGUE`) pelos status oficiais do backend (`PENDENTE`, `CONFIRMADO_POSTO`, `EM_PREPARACAO`, `EM_TRANSPORTE`, `CONCLUIDO`, `CANCELADO`).
@@ -279,7 +279,7 @@ flowchart TD
 
 ## FASE 5: Integração das Páginas de Administração (Posto & Geral)
 
-### [ ] TASK-5.1: Dashboard de Pedidos Recebidos do Posto (`/posto/pedidos`)
+### [x] TASK-5.1: Dashboard de Pedidos Recebidos do Posto (`/posto/pedidos`)
 - **Arquivo Alvo:** `frontend/src/pages/posto/PostoPedidosPage.jsx`
 - **Ações:**
   - Listar pedidos atribuídos ao posto do administrador logado via `GET /api/v1/orders?posto_id=:id`.
@@ -289,7 +289,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-5.2: Tela de Gestão de Preços e Catálogo do Posto (`/posto/catalogo`)
+### [x] TASK-5.2: Tela de Gestão de Preços e Catálogo do Posto (`/posto/catalogo`)
 - **Arquivo Alvo:** `frontend/src/pages/posto/PostoCatalogoPage.jsx`
 - **Ações:**
   - Carregar tipos de combustíveis e preços atuais do posto via `GET /api/v1/stations/:stationId/fuels`.
@@ -300,7 +300,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-5.3: Cadastro e Gestão de Entregadores do Posto (`/posto/entregadores`)
+### [x] TASK-5.3: Cadastro e Gestão de Entregadores do Posto (`/posto/entregadores`)
 - **Arquivo Alvo:** `frontend/src/pages/posto/PostoEntregadoresPage.jsx`
 - **Ações:**
   - Listar entregadores cadastrados no posto via `GET /api/v1/couriers?posto_id=:id`.
@@ -310,7 +310,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-5.4: Gestão Geral de Postos e Vínculos (`/admin/postos`)
+### [x] TASK-5.4: Gestão Geral de Postos e Vínculos (`/admin/postos`)
 - **Arquivos Alvo:**
   - `frontend/src/pages/admin/AdminPostosPage.jsx`
   - `frontend/src/pages/admin/AdminVinculosPage.jsx`
@@ -324,7 +324,7 @@ flowchart TD
 
 ## FASE 6: Testes Automatizados, Docker Build & Validação Ponta a Ponta
 
-### [ ] TASK-6.1: Suíte de Testes Unitários e de Integração do Backend (Jest)
+### [x] TASK-6.1: Suíte de Testes Unitários e de Integração do Backend (Jest)
 - **Arquivos Alvo:**
   - `tests/unit/stationPricing.test.js`
   - `tests/integration/stationPricingRoutes.test.js`
@@ -337,7 +337,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-6.2: Suíte de Testes Unitários do Frontend (Vitest + Testing Library)
+### [x] TASK-6.2: Suíte de Testes Unitários do Frontend (Vitest + Testing Library)
 - **Arquivos Alvo:**
   - `frontend/src/services/__tests__/api.interceptors.test.js`
   - `frontend/src/pages/auth/__tests__/LoginPage.test.jsx`
@@ -354,7 +354,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-6.3: Validação do Build Contêinerizado e Proxy Reverso com Docker
+### [x] TASK-6.3: Validação do Build Contêinerizado e Proxy Reverso com Docker
 - **Arquivos Alvo:**
   - [`Dockerfile`](Dockerfile)
   - [`frontend/Dockerfile`](frontend/Dockerfile)
@@ -383,7 +383,7 @@ flowchart TD
 
 ## FASE 7: Documentação Técnica, Revisão e Pull Request
 
-### [ ] TASK-7.1: Atualização de Documentações dos Módulos
+### [x] TASK-7.1: Atualização de Documentações dos Módulos
 - **Arquivos Alvo:**
   - [`frontend/README.md`](frontend/README.md)
   - [`src/modules/stations/README.md`](src/modules/stations/README.md)
@@ -397,7 +397,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-7.2: Atualização do `pr.md` e Submissão do Pull Request
+### [x] TASK-7.2: Atualização do `pr.md` e Submissão do Pull Request
 - **Arquivos Alvo:**
   - [`pr.md`](pr.md)
 - **Ações:**

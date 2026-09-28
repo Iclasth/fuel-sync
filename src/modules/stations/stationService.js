@@ -199,6 +199,43 @@ const getStationFuelHistory = async (stationId, combustivelId) => {
     return data || [];
 };
 
+const getStationAdmins = async (stationId) => {
+    const { data, error } = await supabase
+        .from('posto_administradores')
+        .select('*')
+        .eq('posto_id', Number(stationId));
+
+    if (error) {
+        throw new AppError(`Erro ao consultar administradores do posto: ${error.message}`, 500);
+    }
+
+    return data || [];
+};
+
+const assignStationAdmin = async (stationId, userId, currentUser) => {
+    if (currentUser.role !== 'admin_geral') {
+        throw new AppError('Apenas o Administrador Geral pode associar gestores aos postos.', 403);
+    }
+
+    if (!userId) {
+        throw new AppError('O identificador do usuário (user_id) é obrigatório.', 400);
+    }
+
+    const { data, error } = await supabase
+        .from('posto_administradores')
+        .insert([{ posto_id: Number(stationId), user_id: userId }])
+        .select();
+
+    if (error) {
+        if (error.code === '23505' || (error.message && error.message.includes('unique'))) {
+            throw new AppError('Este usuário já administra este posto.', 409);
+        }
+        throw new AppError(`Erro ao vincular administrador ao posto: ${error.message}`, 500);
+    }
+
+    return data[0];
+};
+
 module.exports = {
     createStation,
     getStations,
@@ -208,5 +245,8 @@ module.exports = {
     getStationFuels,
     createStationFuel,
     updateStationFuel,
-    getStationFuelHistory
+    getStationFuelHistory,
+    getStationAdmins,
+    assignStationAdmin
 };
+

@@ -24,9 +24,15 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// Request interceptor to attach JWT token if present in localStorage
+// Request interceptor to attach JWT token and normalize url
 api.interceptors.request.use(
   (config) => {
+    if (config.url && config.url.startsWith('/api/v1')) {
+      config.url = config.url.replace('/api/v1', '');
+      if (!config.url.startsWith('/')) {
+        config.url = '/' + config.url;
+      }
+    }
     const token = localStorage.getItem('fuel_sync_token');
     if (token) {
       if (config.headers && typeof config.headers.set === 'function') {
