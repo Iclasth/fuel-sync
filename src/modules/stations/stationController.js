@@ -41,9 +41,61 @@ const updateStation = async (req, res, next) => {
     }
 };
 
+const getStationFuels = async (req, res, next) => {
+    try {
+        const { stationId } = req.params;
+        const fuels = await stationService.getStationFuels(Number(stationId));
+        return res.status(200).json(fuels);
+    } catch (err) {
+        next(err);
+    }
+};
+
+const createStationFuel = async (req, res, next) => {
+    try {
+        const { stationId } = req.params;
+        const fuel = await stationService.createStationFuel(Number(stationId), req.body, req.user);
+        return res.status(201).json(fuel);
+    } catch (err) {
+        next(err);
+    }
+};
+
+const updateStationFuel = async (req, res, next) => {
+    try {
+        const { stationId, combustivelId } = req.params;
+        const updated = await stationService.updateStationFuel(
+            Number(stationId),
+            Number(combustivelId),
+            req.body,
+            req.user
+        );
+        return res.status(200).json(updated);
+    } catch (err) {
+        next(err);
+    }
+};
+
+const getStationFuelHistory = async (req, res, next) => {
+    try {
+        const { stationId, combustivelId } = req.params;
+        const history = await stationService.getStationFuelHistory(
+            Number(stationId),
+            Number(combustivelId)
+        );
+        return res.status(200).json(history);
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     createStation,
     getStations,
     getStationById,
-    updateStation
+    updateStation,
+    getStationFuels,
+    createStationFuel,
+    updateStationFuel,
+    getStationFuelHistory
 };

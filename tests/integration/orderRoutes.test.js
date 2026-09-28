@@ -87,17 +87,28 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
                             single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
                         })
                     })
-                }) // Busca cliente
+                }) // 1. Busca cliente
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                }) // 2. Consulta posto_combustiveis
                 .mockReturnValueOnce({
                     insert: jest.fn().mockReturnValue({
                         select: jest.fn().mockResolvedValue({ data: [mockOrder], error: null })
                     })
-                }) // Insere pedido
+                }) // 3. Insere pedido
                 .mockReturnValueOnce({
                     insert: jest.fn().mockReturnValue({
                         select: jest.fn().mockResolvedValue({ data: mockItems, error: null })
                     })
-                }); // Insere itens
+                }); // 4. Insere itens
 
             const res = await request(app)
                 .post('/api/v1/orders')
@@ -108,6 +119,47 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
             expect(res.body).toHaveProperty('id', 100);
             expect(res.body).toHaveProperty('valor_total', 1010.00);
             expect(res.body.itens.length).toBe(2);
+        });
+
+        it('TC-ORD-API-ANTIFRAUD: deve bloquear pedido com 400 se cliente tentar fraudar preço unitário', async () => {
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const mockCustomer = { id: 10, usuario_id: 'usr-cliente-1', nome: 'Cliente Teste' };
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
+                        })
+                    })
+                }) // 1. Busca cliente
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                }); // 2. Consulta posto_combustiveis
+
+            // Cliente tenta passar R$ 1.00 ao invés de R$ 6.50
+            const fraudulentPayload = {
+                ...validPayload,
+                itens: [
+                    { combustivel_id: 1, quantidade_litros: 100, valor_unitario: 1.00 }
+                ]
+            };
+
+            const res = await request(app)
+                .post('/api/v1/orders')
+                .set('Authorization', 'Bearer valid-customer-token')
+                .send(fraudulentPayload);
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toMatch(/Preço unitário divergente/i);
         });
 
         it('TC-ORD-API-03: deve rejeitar com 400 se itens estiverem vazios', async () => {

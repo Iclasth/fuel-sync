@@ -138,4 +138,112 @@ router.put(
     stationController.updateStation
 );
 
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels:
+ *   get:
+ *     summary: Lista combustíveis e preços praticados pelo posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de combustíveis do posto
+ */
+router.get(
+    '/:stationId/fuels',
+    authMiddleware,
+    stationController.getStationFuels
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels:
+ *   post:
+ *     summary: Cadastra combustível com preço e estoque no posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       201:
+ *         description: Combustível cadastrado no posto com sucesso
+ */
+router.post(
+    '/:stationId/fuels',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.createStationFuel
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels/{combustivelId}:
+ *   put:
+ *     summary: Atualiza preço e estoque do combustível no posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: combustivelId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Preço do combustível atualizado no posto
+ */
+router.put(
+    '/:stationId/fuels/:combustivelId',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.updateStationFuel
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels/{combustivelId}/history:
+ *   get:
+ *     summary: Consulta o histórico auditado de alterações de preços
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: combustivelId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Histórico de preços do combustível
+ */
+router.get(
+    '/:stationId/fuels/:combustivelId/history',
+    authMiddleware,
+    stationController.getStationFuelHistory
+);
+
 module.exports = router;

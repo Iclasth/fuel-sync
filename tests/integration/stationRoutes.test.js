@@ -203,4 +203,109 @@ describe('Integration: Station Routes (/api/v1/stations)', () => {
             expect(res.body).toHaveProperty('tempo_medio_preparo_minutos', 20);
         });
     });
+
+    describe('Station Fuels and Pricing (/api/v1/stations/:stationId/fuels)', () => {
+        it('TC-ST-FUEL-01: deve listar os combustíveis do posto com status 200', async () => {
+            mockAuthUser('cliente');
+            const mockFuels = [
+                { id: 'uuid-1', posto_id: 1, combustivel_id: 1, preco_litro: 5.89, disponivel: true }
+            ];
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({ data: mockFuels, error: null })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/1/fuels')
+                .set('Authorization', 'Bearer valid-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(mockFuels);
+        });
+
+        it('TC-ST-FUEL-02: deve rejeitar cadastro de combustível se posto_admin não for do posto (403)', async () => {
+            mockAuthUser('posto_admin', 'usr-unauthorized');
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/stations/1/fuels')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ combustivel_id: 1, preco_litro: 6.50 });
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/não administra este posto/i);
+        });
+
+        it('TC-ST-FUEL-03: deve permitir cadastro de combustível para admin_geral sem checar posto_administradores', async () => {
+            mockAuthUser('admin_geral', 'usr-general-admin');
+            const mockCreated = { id: 'uuid-2', posto_id: 1, combustivel_id: 1, preco_litro: 6.50 };
+            supabase.from.mockReturnValueOnce({
+                insert: jest.fn().mockReturnValue({
+                    select: jest.fn().mockResolvedValue({ data: [mockCreated], error: null })
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/stations/1/fuels')
+                .set('Authorization', 'Bearer general-token')
+                .send({ combustivel_id: 1, preco_litro: 6.50 });
+
+            expect(res.status).toBe(201);
+            expect(res.body).toEqual(mockCreated);
+        });
+
+        it('TC-ST-FUEL-04: deve atualizar preço de combustível com status 200', async () => {
+            mockAuthUser('admin_geral');
+            const mockUpdated = { id: 'uuid-1', posto_id: 1, combustivel_id: 1, preco_litro: 7.10 };
+            supabase.from.mockReturnValueOnce({
+                update: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .put('/api/v1/stations/1/fuels/1')
+                .set('Authorization', 'Bearer token')
+                .send({ preco_litro: 7.10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.preco_litro).toBe(7.10);
+        });
+
+        it('TC-ST-FUEL-05: deve consultar histórico auditado de preços com status 200', async () => {
+            mockAuthUser('cliente');
+            const mockHistory = [
+                { id: 'h-1', preco_anterior: 6.50, preco_novo: 7.10, alterado_em: '2026-09-28T10:00:00Z' }
+            ];
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            order: jest.fn().mockResolvedValue({ data: mockHistory, error: null })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/1/fuels/1/history')
+                .set('Authorization', 'Bearer token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(mockHistory);
+        });
+    });
 });

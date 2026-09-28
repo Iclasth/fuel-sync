@@ -8,6 +8,7 @@ jest.mock('../../src/config/supabaseClient', () => {
             signUp: jest.fn(),
             signInWithPassword: jest.fn(),
             getUser: jest.fn(),
+            refreshSession: jest.fn(),
             admin: {
                 createUser: jest.fn()
             }
@@ -146,6 +147,65 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
 
             expect(res.status).toBe(401);
             expect(res.body).toHaveProperty('error', 'Credenciais inválidas.');
+        });
+    });
+
+    describe('POST /api/v1/auth/refresh', () => {
+        it('TC-API-REFRESH-01: deve renovar a sessão com sucesso retornando novo accessToken e refreshToken', async () => {
+            supabase.auth.refreshSession.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'usr-123',
+                        email: 'usuario@teste.com',
+                        user_metadata: { role: 'cliente', name: 'Usuario Teste' }
+                    },
+                    session: {
+                        access_token: 'new-access-token-999',
+                        refresh_token: 'new-refresh-token-888'
+                    }
+                },
+                error: null
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/refresh')
+                .send({ refreshToken: 'valid-refresh-token' });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({
+                accessToken: 'new-access-token-999',
+                refreshToken: 'new-refresh-token-888',
+                user: {
+                    id: 'usr-123',
+                    email: 'usuario@teste.com',
+                    role: 'cliente',
+                    name: 'Usuario Teste'
+                }
+            });
+        });
+
+        it('TC-API-REFRESH-02: deve retornar 400 se refreshToken não for enviado', async () => {
+            const res = await request(app)
+                .post('/api/v1/auth/refresh')
+                .send({});
+
+            expect(res.status).toBe(400);
+            expect(res.body).toHaveProperty('error', 'Erro de validação');
+            expect(res.body.details).toContain('O campo "refreshToken" é obrigatório.');
+        });
+
+        it('TC-API-REFRESH-03: deve retornar 401 se refreshSession falhar no Supabase', async () => {
+            supabase.auth.refreshSession.mockResolvedValueOnce({
+                data: { user: null, session: null },
+                error: { message: 'Invalid Refresh Token: Refresh Token Not Found', status: 401 }
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/refresh')
+                .send({ refreshToken: 'expired-or-revoked-token' });
+
+            expect(res.status).toBe(401);
+            expect(res.body).toHaveProperty('error', 'Sessão expirada ou refresh token inválido.');
         });
     });
 

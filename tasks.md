@@ -130,7 +130,7 @@ flowchart TD
 
 ## FASE 3: Backend Multi-tenant, Catálogo Tarifário e Refresh Token
 
-### [ ] TASK-3.1: Migração DDL de Preços com Trigger e Vínculo de Administradores
+### [x] TASK-3.1: Migração DDL de Preços com Trigger e Vínculo de Administradores
 - **Arquivos Alvo:**
   - [`database/migrations/002_station_pricing_and_multi_tenant.sql`](database/migrations/002_station_pricing_and_multi_tenant.sql)
   - `scripts/runMigrations.js`
@@ -157,7 +157,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-3.2: Suporte ao Papel `admin_geral` no Backend
+### [x] TASK-3.2: Suporte ao Papel `admin_geral` no Backend
 - **Arquivos Alvo:**
   - [`src/common/constants/enums.js`](src/common/constants/enums.js)
   - [`src/common/middlewares/roleMiddleware.js`](src/common/middlewares/roleMiddleware.js)
@@ -168,7 +168,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-3.3: Endpoint de Renovação de Sessão (`POST /api/v1/auth/refresh`)
+### [x] TASK-3.3: Endpoint de Renovação de Sessão (`POST /api/v1/auth/refresh`)
 - **Arquivos Alvo:**
   - [`src/modules/auth/authService.js`](src/modules/auth/authService.js)
   - [`src/modules/auth/authController.js`](src/modules/auth/authController.js)
@@ -181,7 +181,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-3.4: Endpoints de Precificação e Catálogo por Posto
+### [x] TASK-3.4: Endpoints de Precificação e Catálogo por Posto
 - **Arquivos Alvo:**
   - [`src/modules/stations/stationService.js`](src/modules/stations/stationService.js)
   - [`src/modules/stations/stationController.js`](src/modules/stations/stationController.js)
@@ -196,7 +196,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-3.5: Validação Antifraude de Preço no Pedido B2C
+### [x] TASK-3.5: Validação Antifraude de Preço no Pedido B2C
 - **Arquivos Alvo:**
   - [`src/modules/orders/orderService.js`](src/modules/orders/orderService.js)
   - [`src/modules/orders/orderValidator.js`](src/modules/orders/orderValidator.js)

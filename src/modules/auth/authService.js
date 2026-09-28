@@ -136,9 +136,31 @@ const createCourier = async (adminUser, { name, email, password, cpf, phone, veh
     };
 };
 
+const refreshSession = async ({ refreshToken }) => {
+    const { data, error } = await supabase.auth.refreshSession({
+        refresh_token: refreshToken
+    });
+
+    if (error || !data || !data.session) {
+        throw new AppError('Sessão expirada ou refresh token inválido.', 401);
+    }
+
+    return {
+        accessToken: data.session.access_token,
+        refreshToken: data.session.refresh_token,
+        user: {
+            id: data.user?.id || (data.session.user && data.session.user.id),
+            email: data.user?.email || (data.session.user && data.session.user.email),
+            role: data.user?.user_metadata?.role || data.session.user?.user_metadata?.role || 'cliente',
+            name: data.user?.user_metadata?.name || data.session.user?.user_metadata?.name || null
+        }
+    };
+};
+
 module.exports = {
     signupCustomer,
     login,
     getProfile,
-    createCourier
+    createCourier,
+    refreshSession
 };

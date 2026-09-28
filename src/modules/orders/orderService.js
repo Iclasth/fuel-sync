@@ -28,13 +28,60 @@ const createOrder = async (orderData, user) => {
         throw new AppError('O identificador do cliente (cliente_id) é obrigatório.', 400);
     }
 
+    // Validação antifraude de preços e catálogo por posto
+    const { data: stationFuels } = await supabase
+        .from('posto_combustiveis')
+        .select('combustivel_id, preco_litro, disponivel')
+        .eq('posto_id', orderData.posto_id);
+
+    const priceMap = new Map();
+    if (Array.isArray(stationFuels) && stationFuels.length > 0) {
+        for (const sf of stationFuels) {
+            priceMap.set(sf.combustivel_id, sf);
+        }
+    }
+
+    let calculatedTotal = 0;
+    const itemsToInsert = [];
+
+    for (const item of orderData.itens) {
+        let unitPrice = item.valor_unitario;
+
+        if (priceMap.has(item.combustivel_id)) {
+            const stationFuel = priceMap.get(item.combustivel_id);
+            if (!stationFuel.disponivel) {
+                throw new AppError(`O combustível (ID: ${item.combustivel_id}) está temporariamente indisponível no posto selecionado.`, 400);
+            }
+            const expectedPrice = Number(stationFuel.preco_litro);
+            if (Math.abs(expectedPrice - Number(item.valor_unitario)) > 0.01) {
+                throw new AppError(
+                    `Preço unitário divergente para o combustível (ID: ${item.combustivel_id}). Esperado: R$ ${expectedPrice.toFixed(2)}, Enviado: R$ ${Number(item.valor_unitario).toFixed(2)}.`,
+                    400
+                );
+            }
+            unitPrice = expectedPrice;
+        }
+
+        const subtotal = Number((item.quantidade_litros * unitPrice).toFixed(2));
+        calculatedTotal += subtotal;
+
+        itemsToInsert.push({
+            combustivel_id: item.combustivel_id,
+            quantidade_litros: item.quantidade_litros,
+            valor_unitario: unitPrice,
+            subtotal
+        });
+    }
+
+    calculatedTotal = Number(calculatedTotal.toFixed(2));
+
     const { data: orderRows, error: orderError } = await supabase
         .from('pedidos')
         .insert([{
             cliente_id: clienteId,
             posto_id: orderData.posto_id,
             status: OrderStatus.PENDENTE,
-            valor_total: orderData.valor_total,
+            valor_total: calculatedTotal,
             endereco_entrega: orderData.endereco_entrega,
             ponto_referencia: orderData.ponto_referencia,
             tipo_local: orderData.tipo_local,
@@ -50,17 +97,11 @@ const createOrder = async (orderData, user) => {
 
     const createdOrder = orderRows[0];
 
-    const itemsToInsert = orderData.itens.map(item => ({
-        pedido_id: createdOrder.id,
-        combustivel_id: item.combustivel_id,
-        quantidade_litros: item.quantidade_litros,
-        valor_unitario: item.valor_unitario,
-        subtotal: item.subtotal
-    }));
+    const finalItems = itemsToInsert.map(i => ({ ...i, pedido_id: createdOrder.id }));
 
     const { data: itemRows, error: itemsError } = await supabase
         .from('itens_pedido')
-        .insert(itemsToInsert)
+        .insert(finalItems)
         .select();
 
     if (itemsError) {
