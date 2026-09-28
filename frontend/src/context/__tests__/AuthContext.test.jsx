@@ -7,6 +7,7 @@ import api from '../../services/api';
 
 vi.mock('../../services/api', () => ({
   default: {
+    get: vi.fn(),
     post: vi.fn(),
     interceptors: {
       request: { use: vi.fn() },
@@ -113,5 +114,29 @@ describe('AuthContext', () => {
     expect(result.current.isAuthenticated).toBe(true);
     expect(localStorage.getItem('fuel_sync_token')).toBe('refreshed-token');
     expect(localStorage.getItem('fuel_sync_refresh_token')).toBe('refreshed-refresh');
+  });
+
+  it('substitui papel adulterado no localStorage pela role autoritativa do servidor via /auth/me', async () => {
+    // Simula tentativa de fraude: usuário comum alterou fuel_sync_user para 'admin_geral' no DevTools
+    const fakeAdminUser = { id: 'usr-9', email: 'malicioso@teste.com', role: 'admin_geral' };
+    const realDbUser = { id: 'usr-9', email: 'malicioso@teste.com', role: 'cliente' };
+
+    localStorage.setItem('fuel_sync_token', 'jwt-valido');
+    localStorage.setItem('fuel_sync_user', JSON.stringify(fakeAdminUser));
+
+    // Servidor retorna a role real do banco de dados ('cliente')
+    api.get.mockResolvedValueOnce({
+      data: realDbUser,
+    });
+
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    // O estado e o localStorage devem ter sido saneados para 'cliente'
+    expect(result.current.user.role).toBe('cliente');
+    expect(JSON.parse(localStorage.getItem('fuel_sync_user')).role).toBe('cliente');
   });
 });

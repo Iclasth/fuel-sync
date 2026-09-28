@@ -132,6 +132,47 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
             });
         });
 
+        it('TC-API-04-A: deve retornar role atualizada da tabela perfis_usuarios no login quando for modificada no banco', async () => {
+            supabase.auth.signInWithPassword.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'usr-promovido-456',
+                        email: 'admin@posto.com',
+                        user_metadata: {
+                            role: 'cliente', // No Auth ainda está cliente
+                            name: 'Admin Posto'
+                        }
+                    },
+                    session: {
+                        access_token: 'jwt-admin-token',
+                        refresh_token: 'jwt-refresh-token'
+                    }
+                },
+                error: null
+            });
+
+            // No banco perfis_usuarios, o usuário foi alterado para 'posto_admin'
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnThis(),
+                eq: jest.fn().mockReturnThis(),
+                maybeSingle: jest.fn().mockResolvedValue({
+                    data: { role: 'posto_admin', nome: 'Admin Posto Promovido' },
+                    error: null
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/login')
+                .send({
+                    email: 'admin@posto.com',
+                    password: 'password123'
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.user.role).toBe('posto_admin');
+            expect(res.body.user.name).toBe('Admin Posto Promovido');
+        });
+
         it('TC-API-05: deve retornar 401 quando as credenciais forem inválidas', async () => {
             supabase.auth.signInWithPassword.mockResolvedValueOnce({
                 data: { user: null, session: null },
@@ -293,6 +334,73 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
             expect(res.body).toHaveProperty('courier');
             expect(res.body.courier.role).toBe('entregador');
             expect(res.body).toHaveProperty('message', 'Entregador cadastrado com sucesso.');
+        });
+
+        it('TC-API-08-A: deve persistir entregador na tabela entregadores associado ao posto', async () => {
+            supabase.auth.getUser.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'admin-uuid-1',
+                        email: 'admin@posto.com',
+                        user_metadata: { role: 'posto_admin' }
+                    }
+                },
+                error: null
+            });
+
+            supabase.auth.signUp.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'courier-uuid-10',
+                        email: 'novo@entregador.com',
+                        user_metadata: { role: 'entregador', name: 'Novo Entregador' }
+                    }
+                },
+                error: null
+            });
+
+            // 1. Busca posto_administradores
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({
+                            data: { posto_id: 2 },
+                            error: null
+                        })
+                    })
+                })
+            });
+
+            // 2. Insert perfis_usuarios
+            supabase.from.mockReturnValueOnce({
+                insert: jest.fn().mockResolvedValue({ data: null, error: null })
+            });
+
+            // 3. Insert entregadores
+            const mockCourierRow = {
+                id: 5,
+                usuario_id: 'courier-uuid-10',
+                posto_id: 2,
+                nome: 'Novo Entregador',
+                status: 'DISPONIVEL'
+            };
+            supabase.from.mockReturnValueOnce({
+                insert: jest.fn().mockReturnValue({
+                    select: jest.fn().mockResolvedValue({
+                        data: [mockCourierRow],
+                        error: null
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/admin/create-courier')
+                .set('Authorization', 'Bearer token-do-posto')
+                .send({ ...courierPayload, email: 'novo@entregador.com' });
+
+            expect(res.status).toBe(201);
+            expect(res.body.courier).toHaveProperty('entregador_id', 5);
+            expect(res.body.courier).toHaveProperty('posto_id', 2);
         });
 
         it('TC-API-09: deve bloquear com 403 se cliente tentar criar entregador', async () => {
