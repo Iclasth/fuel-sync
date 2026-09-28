@@ -1,170 +1,166 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Truck, Clock, Navigation, CheckCircle2, LogOut } from 'lucide-react';
-import useAuth from '../hooks/useAuth';
+import { Clock, CheckCircle2, Truck, AlertTriangle, XCircle, ArrowRight } from 'lucide-react';
+import AppLayout from '../components/layout/AppLayout';
 
-const STATUS_PEDIDO = {
-  PENDENTE: 'Pendente',
-  ROTA: 'Calculando Rota',
-  TRANSITO: 'A Caminho',
-  ENTREGUE: 'Entregue',
-  CANCELADO: 'Cancelado'
+const ORDER_STATUS_CONFIG = {
+  PENDENTE: {
+    label: 'Pendente',
+    description: 'Aguardando validação de estoque pelo posto credenciado.',
+    badge: 'bg-amber-50 text-amber-800 border-amber-200',
+  },
+  CONFIRMADO: {
+    label: 'Confirmado',
+    description: 'Posto confirmou a disponibilidade e agendou o despacho.',
+    badge: 'bg-blue-50 text-blue-800 border-blue-200',
+  },
+  PREPARANDO: {
+    label: 'Preparando',
+    description: 'Carga em abastecimento no tanque do caminhão/embarcação.',
+    badge: 'bg-indigo-50 text-indigo-800 border-indigo-200',
+  },
+  EM_TRANSITO: {
+    label: 'Em Trânsito',
+    description: 'Entregador em deslocamento até o ponto de atracação/entrega.',
+    badge: 'bg-sky-50 text-sky-800 border-sky-200',
+  },
+  ENTREGUE: {
+    label: 'Entregue',
+    description: 'Abastecimento finalizado com telemetria conferida.',
+    badge: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  },
+  CANCELADO: {
+    label: 'Cancelado',
+    description: 'Pedido cancelado pelo cliente ou operador.',
+    badge: 'bg-red-50 text-red-800 border-red-200',
+  },
 };
 
-export default function OrderTrackingPage() {
-  const { logout } = useAuth();
-  const [statusAtual, setStatusAtual] = useState(STATUS_PEDIDO.PENDENTE);
+const STEPS = ['PENDENTE', 'CONFIRMADO', 'PREPARANDO', 'EM_TRANSITO', 'ENTREGUE'];
 
-  const renderizarConteudoDoStatus = () => {
-    switch (statusAtual) {
-      case STATUS_PEDIDO.PENDENTE:
-        return (
-          <div className="flex flex-col items-center justify-center h-64 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl">
-            <Clock className="w-12 h-12 text-yellow-500 mb-3 animate-pulse" />
-            <p className="text-gray-800 font-bold text-base">Aguardando confirmação do posto...</p>
-            <p className="text-gray-500 text-sm mt-1">O parceiro logístico está a validar o stock selecionado.</p>
-          </div>
-        );
-      case STATUS_PEDIDO.ROTA:
-        return (
-          <div className="flex flex-col items-center justify-center h-64 bg-purple-50 border-2 border-purple-200 rounded-xl">
-            <div className="w-10 h-10 border-4 border-[#6b46c1] border-t-transparent rounded-full animate-spin mb-4"></div>
-            <p className="text-[#6b46c1] font-bold text-base">IA a definir a melhor rota e o entregador...</p>
-            <p className="text-purple-600/70 text-sm mt-1">Otimizando percursos náuticos e terrestres em tempo real.</p>
-          </div>
-        );
-      case STATUS_PEDIDO.TRANSITO:
-        return (
-          <div className="flex flex-col items-center justify-center h-64 bg-blue-50 border-2 border-blue-200 rounded-xl shadow-inner">
-            <Truck className="w-12 h-12 text-blue-500 mb-3 animate-bounce" />
-            <p className="text-blue-800 font-bold text-base">Camião/Embarcação a caminho!</p>
-            <p className="text-blue-600/70 text-sm mt-1">Acompanhamento ativo via telemetria GPS.</p>
-          </div>
-        );
-      case STATUS_PEDIDO.ENTREGUE:
-        return (
-          <div className="flex flex-col items-center justify-center h-64 bg-green-50 border-2 border-green-200 rounded-xl">
-            <CheckCircle2 className="w-12 h-12 text-green-500 mb-3" />
-            <p className="text-green-700 font-bold text-xl">Combustível entregue com sucesso!</p>
-            <p className="text-green-600/70 text-sm mt-1">Recibo digital e relatório de abastecimento emitidos.</p>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
+export const OrderTrackingPage = () => {
+  const [currentStatus, setCurrentStatus] = useState('EM_TRANSITO');
 
-  const getStatusColor = () => {
-    switch (statusAtual) {
-      case STATUS_PEDIDO.PENDENTE: return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-      case STATUS_PEDIDO.ROTA: return 'bg-purple-100 text-purple-700 border-purple-200';
-      case STATUS_PEDIDO.TRANSITO: return 'bg-blue-100 text-blue-700 border-blue-200';
-      case STATUS_PEDIDO.ENTREGUE: return 'bg-green-100 text-green-700 border-green-200';
-      default: return 'bg-gray-100 text-gray-700 border-gray-200';
-    }
-  };
+  const currentStepIndex = STEPS.indexOf(currentStatus);
+  const statusInfo = ORDER_STATUS_CONFIG[currentStatus] || ORDER_STATUS_CONFIG.PENDENTE;
 
   return (
-    <div className="flex min-h-screen bg-gray-50 font-sans text-gray-800">
-      
-      {/* Barra Lateral (Sidebar NAVROTAS) */}
-      <aside className="w-64 bg-[#6b46c1] text-white flex flex-col shadow-2xl relative z-10 hidden md:flex">
-        <div className="h-20 flex items-center px-8 border-b border-purple-500/30">
-          <h1 className="text-2xl font-bold tracking-widest uppercase">NAVROTAS</h1>
+    <AppLayout>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">
+            Rastreamento de Pedido
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Acompanhe o status e a telemetria do seu pedido em tempo real
+          </p>
         </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link to="/" className="block px-4 py-3 rounded-lg hover:bg-white/10 text-purple-100 transition-colors">
-            Início / Perfil
-          </Link>
-          <Link to="/comprar" className="block px-4 py-3 rounded-lg hover:bg-white/10 text-purple-100 transition-colors">
-            Abastecimento
-          </Link>
-          <Link to="/enderecos" className="block px-4 py-3 rounded-lg hover:bg-white/10 text-purple-100 transition-colors">
-            Endereços
-          </Link>
-          <Link to="/rastreio" className="block px-4 py-3 rounded-lg bg-white/20 font-medium text-white transition-colors">
-            Pedidos
-          </Link>
-        </nav>
 
-        <div className="p-4 border-t border-purple-500/30">
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold text-purple-100 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
-          >
-            <LogOut className="w-5 h-5" />
-            <span>Sair da conta</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Conteúdo Principal */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto p-8">
-        <div className="max-w-4xl w-full mx-auto space-y-8">
-          
-          <div>
-            <h2 className="text-2xl font-bold text-[#6b46c1] flex items-center gap-2">
-              <Navigation className="w-6 h-6" />
-              Acompanhar Pedido
-            </h2>
-            <p className="text-gray-500 mt-1 text-sm">
-              Monitorize em tempo real o estado do seu fornecimento de combustível através da nossa IA logística.
-            </p>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-xl p-8 shadow-sm space-y-6">
-            
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-gray-100 pb-5">
-              <div>
-                <span className="text-xs uppercase tracking-wider text-gray-500 font-semibold">Identificador</span>
-                <h3 className="font-bold text-gray-800 text-lg">Pedido #FS-1234</h3>
-              </div>
-              
-              <span className={`px-4 py-1.5 rounded-full font-bold text-sm border ${getStatusColor()}`}>
-                {statusAtual}
+        {/* Detalhes do Pedido Ativo */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-gray-100 gap-3">
+            <div>
+              <span className="text-xs text-gray-500 font-mono">PEDIDO #FS-2026-089</span>
+              <h2 className="text-lg font-bold text-gray-900 mt-0.5">
+                Gasolina Comum — 1.500 Litros
+              </h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Fornecedor: Auto Posto Náutico Imperial | Destino: Marina Santos Vaga 12
+              </p>
+            </div>
+            <div>
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded text-xs font-semibold border ${statusInfo.badge}`}
+              >
+                {statusInfo.label}
               </span>
             </div>
+          </div>
 
-            <div>
-              {renderizarConteudoDoStatus()}
+          {/* Stepper Timeline Horizontal */}
+          <div className="py-8">
+            <div className="hidden sm:flex items-center justify-between relative">
+              <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 -translate-y-1/2 z-0" />
+              {STEPS.map((stepKey, idx) => {
+                const isPassed = idx < currentStepIndex;
+                const isCurrent = idx === currentStepIndex;
+                const stepConfig = ORDER_STATUS_CONFIG[stepKey];
+
+                return (
+                  <div key={stepKey} className="relative z-10 flex flex-col items-center">
+                    <div
+                      className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs transition-colors ${
+                        isPassed
+                          ? 'bg-blue-600 text-white'
+                          : isCurrent
+                          ? 'bg-blue-600 text-white ring-4 ring-blue-100'
+                          : 'bg-white border-2 border-gray-300 text-gray-500'
+                      }`}
+                    >
+                      {isPassed ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
+                    </div>
+                    <span
+                      className={`text-xs mt-2 font-medium ${
+                        isCurrent
+                          ? 'text-blue-700 font-bold'
+                          : isPassed
+                          ? 'text-gray-800'
+                          : 'text-gray-400'
+                      }`}
+                    >
+                      {stepConfig.label}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
-            <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center gap-3">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider mr-2">Simulador de Estados:</span>
-              
-              <button 
-                onClick={() => setStatusAtual(STATUS_PEDIDO.PENDENTE)} 
-                className="bg-white hover:bg-gray-50 text-gray-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-gray-300"
-              >
-                Pendente
-              </button>
-              
-              <button 
-                onClick={() => setStatusAtual(STATUS_PEDIDO.ROTA)} 
-                className="bg-purple-50 hover:bg-purple-100 text-[#6b46c1] px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-purple-200"
-              >
-                IA (Rota)
-              </button>
-              
-              <button 
-                onClick={() => setStatusAtual(STATUS_PEDIDO.TRANSITO)} 
-                className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-blue-200"
-              >
-                Trânsito
-              </button>
-              
-              <button 
-                onClick={() => setStatusAtual(STATUS_PEDIDO.ENTREGUE)} 
-                className="bg-green-50 hover:bg-green-100 text-green-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-green-200"
-              >
-                Entregue
-              </button>
-            </div>
+            {/* Stepper Mobile Vertical */}
+            <div className="sm:hidden space-y-4">
+              {STEPS.map((stepKey, idx) => {
+                const isPassed = idx < currentStepIndex;
+                const isCurrent = idx === currentStepIndex;
+                const stepConfig = ORDER_STATUS_CONFIG[stepKey];
 
+                return (
+                  <div key={stepKey} className="flex items-start gap-3">
+                    <div
+                      className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                        isPassed
+                          ? 'bg-blue-600 text-white'
+                          : isCurrent
+                          ? 'bg-blue-600 text-white ring-2 ring-blue-100'
+                          : 'bg-white border border-gray-300 text-gray-400'
+                      }`}
+                    >
+                      {isPassed ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                    </div>
+                    <div>
+                      <p
+                        className={`text-sm font-semibold ${
+                          isCurrent ? 'text-blue-700' : 'text-gray-800'
+                        }`}
+                      >
+                        {stepConfig.label}
+                      </p>
+                      <p className="text-xs text-gray-500">{stepConfig.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status Ativo Banner */}
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1">
+              Situação da Operação
+            </h3>
+            <p className="text-sm font-medium text-gray-900">{statusInfo.description}</p>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
-}
+};
+
+export default OrderTrackingPage;

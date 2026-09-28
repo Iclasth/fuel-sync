@@ -1,154 +1,194 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { LogOut } from 'lucide-react';
-import useAuth from '../hooks/useAuth';
+import { Fuel, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
+import AppLayout from '../components/layout/AppLayout';
 
 export const ComprarCombustivelPage = () => {
-  const navigate = useNavigate();
-  const { logout } = useAuth();
-  
-  const [combustivelSelecionado, setCombustivelSelecionado] = useState('gasolina');
+  const [combustivelSelecionado, setCombustivelSelecionado] = useState('gasolina_comum');
+  const [quantidadeLitros, setQuantidadeLitros] = useState('');
+  const [postoSelecionado, setPostoSelecionado] = useState('');
+  const [observacoes, setObservacoes] = useState('');
+  const [sucesso, setSucesso] = useState(false);
 
   const tiposCombustivel = [
-    { id: 'gasolina', label: 'Gasolina' },
-    { id: 'diesel', label: 'Diesel' },
-    { id: 'aditivada', label: 'Gasolina / Aditivada' }
+    { id: 'gasolina_comum', label: 'Gasolina Comum', precoReferencia: 5.89 },
+    { id: 'diesel_s10', label: 'Diesel S10 Náutico', precoReferencia: 6.25 },
+    { id: 'gasolina_aditivada', label: 'Gasolina Aditivada', precoReferencia: 6.09 },
   ];
+
+  const postosDisponiveis = [
+    { id: 'posto-1', nome: 'Posto Náutico Imperial', cidade: 'Santos - SP' },
+    { id: 'posto-2', nome: 'Auto Posto Real Center', cidade: 'Guarulhos - SP' },
+    { id: 'posto-3', nome: 'Marina & Abastecimento Oceano Azul', cidade: 'São Sebastião - SP' },
+  ];
+
+  const comb = tiposCombustivel.find((c) => c.id === combustivelSelecionado);
+  const litrosNum = parseFloat(quantidadeLitros) || 0;
+  const totalEstimado = (litrosNum * (comb?.precoReferencia || 0)).toFixed(2);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // Lógica de submissão aqui
-    console.log('Compra confirmada!');
+    if (!litrosNum || litrosNum <= 0) return;
+    setSucesso(true);
+    setTimeout(() => {
+      setSucesso(false);
+    }, 4000);
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50 font-sans text-gray-800">
-      
-      {/* Barra Lateral (Sidebar NAVROTAS) */}
-      <aside className="w-64 bg-[#6b46c1] text-white flex flex-col shadow-2xl relative z-10 hidden md:flex">
-        <div className="h-20 flex items-center px-8 border-b border-purple-500/30">
-          <h1 className="text-2xl font-bold tracking-widest uppercase">NAVROTAS</h1>
+    <AppLayout>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">
+            Solicitação de Abastecimento
+          </h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Selecione o tipo de combustível, a quantidade necessária e o posto credenciado
+          </p>
         </div>
-        
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link to="/" className="block px-4 py-3 rounded-lg hover:bg-white/10 text-purple-100 transition-colors">
-            Início / Perfil
-          </Link>
-          <Link to="/comprar" className="block px-4 py-3 rounded-lg bg-white/20 font-medium text-white transition-colors">
-            Abastecimento
-          </Link>
-          <Link to="/enderecos" className="block px-4 py-3 rounded-lg hover:bg-white/10 text-purple-100 transition-colors">
-            Endereços
-          </Link>
-          <Link to="/rastreio" className="block px-4 py-3 rounded-lg hover:bg-white/10 text-purple-100 transition-colors">
-            Pedidos
-          </Link>
-        </nav>
 
-        <div className="p-4 border-t border-purple-500/30">
-          <button
-            onClick={logout}
-            className="flex items-center gap-3 w-full px-4 py-3 text-sm font-semibold text-purple-100 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+        {sucesso && (
+          <div
+            className="flex items-start gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm"
+            role="status"
           >
-            <LogOut className="w-5 h-5" />
-            <span>Sair da conta</span>
-          </button>
-        </div>
-      </aside>
-
-      {/* Conteúdo Principal */}
-      <main className="flex-1 flex flex-col h-screen overflow-y-auto p-8">
-        <div className="max-w-4xl w-full mx-auto space-y-6">
-          
-          <div>
-            <h2 className="text-2xl font-bold text-[#6b46c1]">Comprar combustível</h2>
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">Pedido registrado com sucesso!</p>
+              <p className="text-xs text-emerald-700 mt-0.5">
+                A solicitação foi enviada para validação e despacho pelo posto homologado.
+              </p>
+            </div>
           </div>
+        )}
 
-          {/* Cartão do Formulário */}
-          <div className="bg-white border border-gray-200 rounded-xl p-8 md:p-10 shadow-sm">
-            
-            <form onSubmit={handleSubmit} className="space-y-8">
-              
-              {/* Seleção de Tipo de Combustível */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {tiposCombustivel.map((tipo) => (
-                  <button
-                    key={tipo.id}
-                    type="button"
-                    onClick={() => setCombustivelSelecionado(tipo.id)}
-                    className={`py-3 px-4 rounded-lg text-sm font-medium transition-all border ${
-                      combustivelSelecionado === tipo.id
-                        ? 'bg-[#6b46c1] text-white border-[#6b46c1] shadow-md shadow-purple-500/20'
-                        : 'bg-white text-gray-500 border-gray-300 hover:border-[#6b46c1] hover:text-[#6b46c1]'
-                    }`}
-                  >
-                    {tipo.label}
-                  </button>
-                ))}
+        <div className="bg-white border border-gray-200 rounded-lg p-6 md:p-8 shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Seleção do Tipo de Combustível */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                1. Tipo de Combustível
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {tiposCombustivel.map((tipo) => {
+                  const isSelected = combustivelSelecionado === tipo.id;
+                  return (
+                    <button
+                      key={tipo.id}
+                      type="button"
+                      onClick={() => setCombustivelSelecionado(tipo.id)}
+                      className={`flex flex-col items-start p-4 rounded-lg border text-left min-h-[44px] transition-colors cursor-pointer ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50/50 ring-1 ring-blue-600 text-gray-900'
+                          : 'border-gray-200 bg-white hover:border-gray-300 text-gray-700'
+                      }`}
+                    >
+                      <span className="font-semibold text-sm">{tipo.label}</span>
+                      <span className="text-xs text-gray-500 mt-1">
+                        Ref: R$ {tipo.precoReferencia.toFixed(2)} / L
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* Campos de Quantidade e Preço */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-600">
-                    Litros
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 10.000L"
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:border-[#6b46c1] focus:ring-1 focus:ring-[#6b46c1] transition-all"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-600">
-                    Preço por litro (R$)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: R$ 65.300,00"
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-800 placeholder-gray-400 text-sm focus:outline-none focus:border-[#6b46c1] focus:ring-1 focus:ring-[#6b46c1] transition-all"
-                  />
-                </div>
+            {/* Posto Homologado */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="posto"
+                className="block text-xs font-semibold text-gray-700 uppercase tracking-wider"
+              >
+                2. Posto Credenciado
+              </label>
+              <div className="relative">
+                <select
+                  id="posto"
+                  value={postoSelecionado}
+                  onChange={(e) => setPostoSelecionado(e.target.value)}
+                  required
+                  className="w-full px-4 py-2.5 min-h-[44px] bg-white border border-gray-300 rounded-lg text-gray-900 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
+                >
+                  <option value="" disabled>
+                    Selecione um posto fornecedor...
+                  </option>
+                  {postosDisponiveis.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome} — {p.cidade}
+                    </option>
+                  ))}
+                </select>
               </div>
+            </div>
 
-              {/* Campo de Posto */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-600">
-                  Posto
+            {/* Quantidade em Litros */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="litros"
+                  className="block text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                >
+                  3. Quantidade (Litros)
                 </label>
                 <div className="relative">
-                  <select 
-                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-gray-800 appearance-none focus:outline-none focus:border-[#6b46c1] focus:ring-1 focus:ring-[#6b46c1] transition-all text-sm"
-                    defaultValue=""
-                  >
-                    <option value="" disabled>Selecione um posto...</option>
-                    <option value="posto-1">Posto Real Center</option>
-                    <option value="posto-2">Auto Posto Náutico Imperial</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-500">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
-                    </svg>
-                  </div>
+                  <input
+                    id="litros"
+                    type="number"
+                    min="1"
+                    step="any"
+                    required
+                    value={quantidadeLitros}
+                    onChange={(e) => setQuantidadeLitros(e.target.value)}
+                    placeholder="Ex: 500"
+                    className="w-full px-4 py-2.5 min-h-[44px] bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
+                  />
                 </div>
               </div>
 
-              {/* Botão de Ação */}
-              <div className="pt-6 flex justify-center">
-                <button
-                  type="submit"
-                  className="w-full md:w-auto min-w-[240px] py-3 px-8 bg-[#6b46c1] hover:bg-[#553699] active:bg-[#442b7a] text-white text-sm font-semibold rounded-lg shadow-md shadow-purple-500/20 transition-all cursor-pointer"
-                >
-                  Confirmar Compra
-                </button>
+              {/* Total Estimado */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                  Valor Estimado
+                </label>
+                <div className="px-4 py-2.5 min-h-[44px] bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Estimativa</span>
+                  <span className="text-base font-bold text-gray-900">
+                    R$ {totalEstimado}
+                  </span>
+                </div>
               </div>
-              
-            </form>
-          </div>
+            </div>
+
+            {/* Observações / Local de Encontro */}
+            <div className="space-y-1.5">
+              <label
+                htmlFor="obs"
+                className="block text-xs font-semibold text-gray-700 uppercase tracking-wider"
+              >
+                4. Observações de Despacho
+              </label>
+              <textarea
+                id="obs"
+                rows={3}
+                value={observacoes}
+                onChange={(e) => setObservacoes(e.target.value)}
+                placeholder="Ex: Embarcação no píer norte, vaga 14. Abastecimento preferencialmente pela manhã."
+                className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 text-sm focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 transition-colors"
+              />
+            </div>
+
+            {/* Botão de Envio */}
+            <div className="pt-2 flex justify-end">
+              <button
+                type="submit"
+                className="w-full sm:w-auto px-6 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              >
+                Confirmar Solicitação de Pedido
+              </button>
+            </div>
+          </form>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 

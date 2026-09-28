@@ -36,7 +36,7 @@ flowchart TD
 
 ## FASE 1: Sessão, Roteamento e Resiliência de Autenticação
 
-### [ ] TASK-1.1: Criação da Branch de Integração
+### [x] TASK-1.1: Criação da Branch de Integração
 - **Descrição:** Criar e publicar a branch de feature dedicada a partir da branch `develop` atualizada.
 - **Comandos:**
   ```bash
@@ -49,7 +49,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-1.2: Correção do Roteamento e Proteção de Rotas
+### [x] TASK-1.2: Correção do Roteamento e Proteção de Rotas
 - **Arquivo Alvo:** [`frontend/src/routes/AppRoutes.jsx`](frontend/src/routes/AppRoutes.jsx)
 - **Ações:**
   - Remover a exportação temporária de `AppRoutesTest` que dispensava a autenticação.
@@ -60,7 +60,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-1.3: Sincronização Síncrona de Logout e Limpeza de Sessão
+### [x] TASK-1.3: Sincronização Síncrona de Logout e Limpeza de Sessão
 - **Arquivos Alvo:**
   - [`frontend/src/context/AuthContext.js`](frontend/src/context/AuthContext.js)
   - [`frontend/src/context/AuthProvider.jsx`](frontend/src/context/AuthProvider.jsx)
@@ -73,7 +73,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-1.4: Implementação do Silent Token Refresh no Interceptor Axios
+### [x] TASK-1.4: Implementação do Silent Token Refresh no Interceptor Axios
 - **Arquivo Alvo:** [`frontend/src/services/api.js`](frontend/src/services/api.js)
 - **Ações:**
   - Armazenar o `fuel_sync_refresh_token` no login.
@@ -90,7 +90,7 @@ flowchart TD
 
 ## FASE 2: Design System Institucional e Responsividade (Enterprise)
 
-### [ ] TASK-2.1: Configuração Tipográfica e Fonte "Poppins"
+### [x] TASK-2.1: Configuração Tipográfica e Fonte "Poppins"
 - **Arquivos Alvo:**
   - [`frontend/index.html`](frontend/index.html)
   - [`frontend/tailwind.config.js`](frontend/tailwind.config.js)
@@ -103,7 +103,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-2.2: Expurgar Anti-padrões de IA e Padronizar Paleta Sóbria
+### [x] TASK-2.2: Expurgar Anti-padrões de IA e Padronizar Paleta Sóbria
 - **Arquivos Alvo:** Todos os arquivos em [`frontend/src/pages/`](frontend/src/pages/) e componentes de layout
 - **Ações:**
   - **Eliminar Gradientes:** Substituir fundos em gradiente por cores sólidas neutras (`bg-gray-50`, `bg-white`, `bg-slate-900`).
@@ -115,7 +115,7 @@ flowchart TD
 
 ---
 
-### [ ] TASK-2.3: Responsividade Estrita e Navegação Adaptável
+### [x] TASK-2.3: Responsividade Estrita e Navegação Adaptável
 - **Arquivos Alvo:**
   - [`frontend/src/pages/HomePage.jsx`](frontend/src/pages/HomePage.jsx)
   - Componentes de Sidebar e Navbar em todas as páginas
