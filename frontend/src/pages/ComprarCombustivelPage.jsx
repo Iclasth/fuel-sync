@@ -27,7 +27,6 @@ export const ComprarCombustivelPage = () => {
   const [observacoes, setObservacoes] = useState('');
 
   // Endereços de entrega salvos
-  const storageKey = `fuel_sync_delivery_locations_${user?.id || 'default'}`;
   const [enderecosSalvos, setEnderecosSalvos] = useState([]);
   const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState('');
   const [enderecoCustom, setEnderecoCustom] = useState({
@@ -44,47 +43,46 @@ export const ComprarCombustivelPage = () => {
   const [mensagemErro, setMensagemErro] = useState('');
   const [sucesso, setSucesso] = useState(false);
 
-  // Carrega lista de postos e locais salvos
+  // Carrega lista de postos e locais salvos diretamente da API do banco
   useEffect(() => {
-    const carregarPostos = async () => {
+    let isMounted = true;
+
+    const carregarPostosELocais = async () => {
       try {
         setIsLoadingPostos(true);
-        const res = await api.get('/api/v1/stations');
-        const stationList = Array.isArray(res.data) ? res.data : [];
-        setPostos(stationList);
-        if (stationList.length > 0) {
-          setPostoSelecionado(String(stationList[0].id));
+        const [postosRes, locaisRes] = await Promise.allSettled([
+          api.get('/api/v1/stations'),
+          api.get('/api/v1/customers/locations'),
+        ]);
+
+        if (isMounted && postosRes.status === 'fulfilled') {
+          const stationList = Array.isArray(postosRes.value.data) ? postosRes.value.data : [];
+          setPostos(stationList);
+          if (stationList.length > 0) {
+            setPostoSelecionado(String(stationList[0].id));
+          }
+        }
+
+        if (isMounted && locaisRes.status === 'fulfilled') {
+          const locations = Array.isArray(locaisRes.value.data) ? locaisRes.value.data : [];
+          setEnderecosSalvos(locations);
+          if (locations.length > 0) {
+            setEnderecoSelecionadoId(String(locations[0].id));
+          }
         }
       } catch (err) {
-        console.error('Erro ao carregar postos:', err);
-        // Fallback para desenvolvimento caso banco ainda esteja sem postos
-        const mockFallback = [
-          { id: 1, nome_fantasia: 'Auto Posto Náutico Imperial', endereco: 'Av. Portuária, 100 - Santos' },
-          { id: 2, nome_fantasia: 'Marina & Abastecimento Oceano Azul', endereco: 'Rod. Rio-Santos, km 15 - Angra' },
-        ];
-        setPostos(mockFallback);
-        setPostoSelecionado('1');
+        console.error('Erro ao carregar dados operacionais:', err);
       } finally {
-        setIsLoadingPostos(false);
+        if (isMounted) setIsLoadingPostos(false);
       }
     };
 
-    // Recupera endereços do localStorage
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setEnderecosSalvos(parsed);
-        if (parsed.length > 0) {
-          setEnderecoSelecionadoId(parsed[0].id);
-        }
-      }
-    } catch (_) {
-      // Ignorar falha de parse
-    }
+    carregarPostosELocais();
 
-    carregarPostos();
-  }, [storageKey]);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Carrega combustíveis do posto selecionado
   useEffect(() => {
@@ -111,7 +109,7 @@ export const ComprarCombustivelPage = () => {
           }
         } else {
           // Fallback para catálogo global
-          const catRes = await api.get('/api/v1/catalog');
+          const catRes = await api.get('/api/v1/catalog/fuels');
           const catFuels = Array.isArray(catRes.data) ? catRes.data : [];
           const mapped = catFuels.map((f) => ({
             id: f.id,

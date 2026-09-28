@@ -139,4 +139,96 @@ router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
  */
 router.delete('/:id', customerController.deleteCustomer);
 
+const deliveryLocationsController = require('./deliveryLocationsController');
+
+/**
+ * @openapi
+ * /api/v1/customers/locations:
+ *   get:
+ *     summary: Retorna todos os locais de entrega do cliente autenticado
+ *     tags:
+ *       - Customers
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de locais de entrega cadastrados
+ *       401:
+ *         description: Não autenticado
+ *       500:
+ *         description: Erro interno no servidor
+ */
+router.get('/locations', deliveryLocationsController.listLocations);
+
+/**
+ * @openapi
+ * /api/v1/customers/locations:
+ *   post:
+ *     summary: Cadastra um novo local de entrega para o cliente autenticado
+ *     tags:
+ *       - Customers
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - apelido
+ *               - tipo_local
+ *               - endereco
+ *               - latitude
+ *               - longitude
+ *             properties:
+ *               apelido:
+ *                 type: string
+ *               tipo_local:
+ *                 type: string
+ *               endereco:
+ *                 type: string
+ *               ponto_referencia:
+ *                 type: string
+ *               latitude:
+ *                 type: number
+ *               longitude:
+ *                 type: number
+ *               padrao:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: Local cadastrado com sucesso
+ *       400:
+ *         description: Dados inválidos
+ *       401:
+ *         description: Não autenticado
+ */
+router.post('/locations', deliveryLocationsController.createLocation);
+
+/**
+ * @openapi
+ * /api/v1/customers/locations/{id}:
+ *   delete:
+ *     summary: Remove um local de entrega do cliente autenticado
+ *     tags:
+ *       - Customers
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Local de entrega removido com sucesso
+ *       401:
+ *         description: Não autenticado
+ *       404:
+ *         description: Local não encontrado
+ */
+router.delete('/locations/:id', deliveryLocationsController.deleteLocation);
+
 module.exports = router;

@@ -7,6 +7,17 @@ const { UserRoles } = require('../../common/constants/enums');
 
 /**
  * @openapi
+ * /api/v1/catalog:
+ *   get:
+ *     summary: Lista tipos de combustíveis disponíveis no catálogo (alias)
+ *     tags: [Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de combustíveis
+ *       401:
+ *         description: Não autenticado
  * /api/v1/catalog/fuels:
  *   get:
  *     summary: Lista tipos de combustíveis disponíveis no catálogo
@@ -19,6 +30,12 @@ const { UserRoles } = require('../../common/constants/enums');
  *       401:
  *         description: Não autenticado
  */
+router.get(
+    '/',
+    authMiddleware,
+    catalogController.listFuels
+);
+
 router.get(
     '/fuels',
     authMiddleware,

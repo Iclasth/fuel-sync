@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Plus, Trash2, CheckCircle2, AlertCircle, Compass } from 'lucide-react';
+import { MapPin, Plus, Trash2, CheckCircle2, AlertCircle, Compass, Loader2 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import useAuth from '../hooks/useAuth';
+import api from '../services/api';
 
 const TIPOS_LOCAL = [
   { value: 'MARINA', label: 'Marina / Píer Náutico' },
@@ -14,40 +15,9 @@ const TIPOS_LOCAL = [
 
 export const EnderecosPage = () => {
   const { user } = useAuth();
-  const storageKey = `fuel_sync_delivery_locations_${user?.id || 'default'}`;
 
-  const defaultLocations = [
-    {
-      id: 'loc-1',
-      apelido: 'Marina da Glória (Píer Sul)',
-      tipo_local: 'MARINA',
-      endereco: 'Av. Infante Dom Henrique, s/n - Glória, Rio de Janeiro - RJ',
-      ponto_referencia: 'Píer Sul, Poita 14 - Lancha Marlin',
-      latitude: -22.9205,
-      longitude: -43.1729,
-    },
-    {
-      id: 'loc-2',
-      apelido: 'Base Náutica Santos (Canal 3)',
-      tipo_local: 'MARINA',
-      endereco: 'Avenida Almirante Saldanha da Gama, 80 - Ponta da Praia, Santos - SP',
-      ponto_referencia: 'Trapiche B, Vaga 08',
-      latitude: -23.9876,
-      longitude: -46.3021,
-    },
-  ];
-
-  const [enderecos, setEnderecos] = useState(() => {
-    try {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (_) {
-      // Fallback
-    }
-    return defaultLocations;
-  });
+  const [enderecos, setEnderecos] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [novoEndereco, setNovoEndereco] = useState({
     apelido: '',
@@ -61,13 +31,32 @@ export const EnderecosPage = () => {
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [mensagemErro, setMensagemErro] = useState('');
 
+  // Carrega locais de entrega do banco de dados
   useEffect(() => {
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(enderecos));
-    } catch (_) {
-      // Ignorar falhas de quota
-    }
-  }, [enderecos, storageKey]);
+    let isMounted = true;
+
+    const carregarEnderecos = async () => {
+      try {
+        setIsLoading(true);
+        const res = await api.get('/api/v1/customers/locations');
+        if (isMounted) {
+          setEnderecos(Array.isArray(res.data) ? res.data : []);
+        }
+      } catch (err) {
+        if (isMounted) {
+          console.error('Erro ao carregar locais:', err);
+        }
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    carregarEnderecos();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -77,7 +66,7 @@ export const EnderecosPage = () => {
     }));
   };
 
-  const handleAdicionar = (e) => {
+  const handleAdicionar = async (e) => {
     e.preventDefault();
     setMensagemSucesso('');
     setMensagemErro('');
@@ -103,34 +92,44 @@ export const EnderecosPage = () => {
       return;
     }
 
-    const novoItem = {
-      id: `loc-${Date.now()}`,
-      apelido: novoEndereco.apelido.trim(),
-      tipo_local: novoEndereco.tipo_local,
-      endereco: novoEndereco.endereco.trim(),
-      ponto_referencia: novoEndereco.ponto_referencia.trim() || null,
-      latitude: lat,
-      longitude: lon,
-    };
+    try {
+      const res = await api.post('/api/v1/customers/locations', {
+        apelido: novoEndereco.apelido.trim(),
+        tipo_local: novoEndereco.tipo_local,
+        endereco: novoEndereco.endereco.trim(),
+        ponto_referencia: novoEndereco.ponto_referencia.trim() || null,
+        latitude: lat,
+        longitude: lon,
+      });
 
-    setEnderecos((prev) => [novoItem, ...prev]);
-    setNovoEndereco({
-      apelido: '',
-      tipo_local: 'MARINA',
-      endereco: '',
-      ponto_referencia: '',
-      latitude: -23.5505,
-      longitude: -46.6333,
-    });
+      setEnderecos((prev) => [res.data, ...prev]);
+      setNovoEndereco({
+        apelido: '',
+        tipo_local: 'MARINA',
+        endereco: '',
+        ponto_referencia: '',
+        latitude: -23.5505,
+        longitude: -46.6333,
+      });
 
-    setMensagemSucesso('Ponto de abastecimento salvo com sucesso no perfil!');
-    setTimeout(() => setMensagemSucesso(''), 3500);
+      setMensagemSucesso('Ponto de abastecimento salvo com sucesso no banco de dados!');
+      setTimeout(() => setMensagemSucesso(''), 3500);
+    } catch (err) {
+      const apiMsg = err.response?.data?.error || 'Erro ao cadastrar ponto de entrega.';
+      setMensagemErro(apiMsg);
+    }
   };
 
-  const handleRemover = (id) => {
-    setEnderecos((prev) => prev.filter((item) => item.id !== id));
-    setMensagemSucesso('Ponto de entrega removido.');
-    setTimeout(() => setMensagemSucesso(''), 3000);
+  const handleRemover = async (id) => {
+    try {
+      await api.delete(`/api/v1/customers/locations/${id}`);
+      setEnderecos((prev) => prev.filter((item) => item.id !== id));
+      setMensagemSucesso('Ponto de entrega removido.');
+      setTimeout(() => setMensagemSucesso(''), 3000);
+    } catch (err) {
+      const apiMsg = err.response?.data?.error || 'Erro ao remover ponto de entrega.';
+      setMensagemErro(apiMsg);
+    }
   };
 
   return (
