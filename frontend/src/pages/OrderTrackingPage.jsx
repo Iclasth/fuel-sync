@@ -168,3 +168,41 @@ export default function OrderTrackingPage() {
     </div>
   );
 }
+
+/* 
+ Front-end JSX para exibir a previsão inteligente da IA Gemini, incluindo detalhes de preparo, fila e viagem, bem como a mensagem empática para o cliente. A cor do badge de precisão muda com base no risco de atraso.
+
+{prediction && (
+  <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 mt-4 shadow-lg">
+    <div className="flex items-center justify-between mb-3">
+      <span className="flex items-center gap-2 text-sky-400 font-semibold text-sm">
+        ✨ Previsão Inteligente FuelSync (Gemini AI)
+      </span>
+      <span className={`px-2 py-1 text-xs rounded-full ${
+        prediction.risco_atraso ? 'bg-amber-500/20 text-amber-400' : 'bg-emerald-500/20 text-emerald-400'
+      }`}>
+        {prediction.confianca}% de Precisão
+      </span>
+    </div>
+
+    <p className="text-gray-200 text-sm mb-4 leading-relaxed">
+      "{prediction.mensagem}"
+    </p>
+
+    <div className="grid grid-cols-3 gap-2 text-center text-xs bg-slate-900/50 p-3 rounded-lg border border-slate-700/50">
+      <div>
+        <span className="text-gray-400 block">Preparo</span>
+        <strong className="text-white">{prediction.tempo_preparo} min</strong>
+      </div>
+      <div>
+        <span className="text-gray-400 block">Fila</span>
+        <strong className="text-white">{prediction.tempo_espera} min</strong>
+      </div>
+      <div>
+        <span className="text-gray-400 block">Viagem</span>
+        <strong className="text-white">{prediction.tempo_viagem} min</strong>
+      </div>
+    </div>
+  </div>
+)}
+  */
