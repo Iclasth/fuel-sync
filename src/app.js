@@ -19,6 +19,7 @@ const stationRoutes = require('./modules/stations/stationRoutes.js');
 const courierRoutes = require('./modules/couriers/courierRoutes.js');
 const catalogRoutes = require('./modules/catalog/catalogRoutes.js');
 const orderRoutes = require('./modules/orders/orderRoutes.js');
+const aiRoutes = require('./modules/ai/aiRoutes.js');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/customers', customerRoutes);
@@ -27,6 +28,7 @@ app.use('/api/v1/stations', stationRoutes);
 app.use('/api/v1/couriers', courierRoutes);
 app.use('/api/v1/catalog', catalogRoutes);
 app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/ai', aiRoutes);
 
 // Middleware centralizado de tratamento de erros
 app.use(errorHandler);
