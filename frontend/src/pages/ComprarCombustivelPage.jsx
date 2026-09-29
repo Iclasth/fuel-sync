@@ -30,11 +30,11 @@ export const ComprarCombustivelPage = () => {
   const [enderecosSalvos, setEnderecosSalvos] = useState([]);
   const [enderecoSelecionadoId, setEnderecoSelecionadoId] = useState('');
   const [enderecoCustom, setEnderecoCustom] = useState({
-    endereco: 'Marina da Glória, Av. Infante Dom Henrique, s/n',
-    ponto_referencia: 'Píer Sul, Vaga 14',
+    endereco: '',
+    ponto_referencia: '',
     tipo_local: 'MARINA',
-    latitude: -22.9205,
-    longitude: -43.1729,
+    latitude: null,
+    longitude: null,
   });
 
   const [isLoadingPostos, setIsLoadingPostos] = useState(true);
@@ -67,7 +67,8 @@ export const ComprarCombustivelPage = () => {
           const locations = Array.isArray(locaisRes.value.data) ? locaisRes.value.data : [];
           setEnderecosSalvos(locations);
           if (locations.length > 0) {
-            setEnderecoSelecionadoId(String(locations[0].id));
+            const defaultLocation = locations.find((l) => l.padrao) || locations[0];
+            setEnderecoSelecionadoId(String(defaultLocation.id));
           }
         }
       } catch (err) {
@@ -163,7 +164,7 @@ export const ComprarCombustivelPage = () => {
     // Identifica o local de entrega
     let enderecoFinal = enderecoCustom;
     if (enderecoSelecionadoId && enderecoSelecionadoId !== 'custom') {
-      const saved = enderecosSalvos.find((s) => s.id === enderecoSelecionadoId);
+      const saved = enderecosSalvos.find((s) => String(s.id) === String(enderecoSelecionadoId));
       if (saved) {
         enderecoFinal = saved;
       }
