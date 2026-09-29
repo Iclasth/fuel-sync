@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Truck,
   AlertTriangle,
+  AlertCircle,
   XCircle,
   ArrowRight,
   Loader2,
@@ -66,6 +67,46 @@ const LOGISTIC_STEPS = [
   { key: 'CONCLUIDO', label: '5. Concluído' },
 ];
 
+export function formatEtaTimeDisplay(aiPrediction) {
+  if (!aiPrediction) return '~35 a 50 minutos';
+
+  let timeText = '';
+  const totalMinutos = Number(aiPrediction.total_minutos);
+  if (!isNaN(totalMinutos) && totalMinutos > 0) {
+    const hours = Math.floor(totalMinutos / 60);
+    const minutes = totalMinutos % 60;
+    if (hours > 0 && minutes > 0) {
+      timeText = `${hours}h ${minutes}min`;
+    } else if (hours > 0) {
+      timeText = `${hours}h`;
+    } else {
+      timeText = `${minutes} minutos`;
+    }
+  } else if (aiPrediction.tempo_formatado) {
+    timeText = aiPrediction.tempo_formatado;
+  }
+
+  if (timeText) {
+    if (aiPrediction.horario_previsto_chegada) {
+      const timeString = new Date(aiPrediction.horario_previsto_chegada).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `~${timeText} (previsão às ${timeString})`;
+    }
+    return `~${timeText}`;
+  }
+
+  if (aiPrediction.horario_previsto_chegada) {
+    return new Date(aiPrediction.horario_previsto_chegada).toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  return '~35 a 50 minutos';
+}
+
 export const OrderTrackingPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryOrderId = searchParams.get('orderId');
@@ -76,6 +117,77 @@ export const OrderTrackingPage = () => {
   const [isCancelling, setIsCancelling] = useState(false);
   const [erro, setErro] = useState('');
   const [mensagemSucesso, setMensagemSucesso] = useState('');
+  const [aiPrediction, setAiPrediction] = useState(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const fetchAiPrediction = async (order) => {
+    if (!order || order.status === 'CONCLUIDO' || order.status === 'CANCELADO') {
+      setAiPrediction(null);
+      return;
+    }
+
+    try {
+      setIsAiLoading(true);
+
+      // Garante os dados do posto a partir do pedido ou consulta direta
+      let stationData = order.posto;
+      if (!stationData && order.posto_id) {
+        try {
+          const stationRes = await api.get(`/api/v1/stations/${order.posto_id}`);
+          if (stationRes?.data) {
+            stationData = stationRes.data;
+          }
+        } catch (_) {}
+      }
+
+      const stLat = stationData?.latitude !== undefined && stationData?.latitude !== null
+        ? Number(stationData.latitude)
+        : null;
+      const stLon = stationData?.longitude !== undefined && stationData?.longitude !== null
+        ? Number(stationData.longitude)
+        : null;
+
+      const destLat = order.destino_latitude !== undefined && order.destino_latitude !== null
+        ? Number(order.destino_latitude)
+        : null;
+      const destLon = order.destino_longitude !== undefined && order.destino_longitude !== null
+        ? Number(order.destino_longitude)
+        : null;
+
+      // Se coordenadas não estiverem disponíveis, não envia fallbacks arbitrários
+      if (stLat === null || stLon === null || destLat === null || destLon === null) {
+        setAiPrediction(null);
+        return;
+      }
+
+      const payload = {
+        orderId: order.id,
+        station: {
+          id: stationData?.id || order.posto_id,
+          latitude: stLat,
+          longitude: stLon,
+          tempo_medio_preparo: stationData?.tempo_medio_preparo_minutos || 15,
+        },
+        destination: {
+          latitude: destLat,
+          longitude: destLon,
+          tipo_local: order.tipo_local || 'MARINA',
+          ponto_referencia: order.ponto_referencia || '',
+        },
+        customerName: order.cliente?.nome || 'Cliente',
+        pendingDeliveries: 0,
+      };
+
+      const res = await api.post('/api/v1/ai/predict-eta', payload);
+      if (res?.data?.data) {
+        setAiPrediction(res.data.data);
+      }
+    } catch (_) {
+      // Ignora erro para não interromper a interface
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
 
   // Carrega lista de pedidos e pedido ativo
   const fetchOrderDetails = async (id) => {
@@ -84,6 +196,9 @@ export const OrderTrackingPage = () => {
       setErro('');
       const res = await api.get(`/api/v1/orders/${id}`);
       setActiveOrder(res.data);
+      if (res.data) {
+        fetchAiPrediction(res.data);
+      }
     } catch (err) {
       console.error('Erro ao buscar detalhes do pedido:', err);
       setErro('Não foi possível carregar os detalhes do pedido selecionado.');
@@ -160,7 +275,7 @@ export const OrderTrackingPage = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">
@@ -434,20 +549,63 @@ export const OrderTrackingPage = () => {
               </div>
 
               <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4">
-                <h3 className="text-xs font-semibold text-blue-900 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Previsão Logística & Telemetria</span>
-                </h3>
-                <p className="text-sm font-medium text-blue-950">
-                  {status === 'CONCLUIDO'
-                    ? 'Operação finalizada com sucesso.'
-                    : isCancelled
-                    ? 'Despacho encerrado.'
-                    : 'Estimativa de entrega: ~35 a 50 minutos.'}
-                </p>
-                <p className="text-xs text-blue-700 mt-1">
-                  Monitoramento contínuo da bomba certificada INMETRO e rota rastreada via GPS.
-                </p>
+                <div className="flex items-center justify-between mb-1.5">
+                  <h3 className="text-xs font-semibold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    <span>{status === 'PENDENTE' ? 'ESTIMATIVA DE CONFIRMAÇÃO' : 'ESTIMATIVA DE ENTREGA'}</span>
+                  </h3>
+                  {aiPrediction?.fila_pedidos !== undefined && Number(aiPrediction.fila_pedidos) > 0 ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
+                      {status === 'PENDENTE'
+                        ? `${aiPrediction.fila_pedidos} na fila de análise`
+                        : `${aiPrediction.fila_pedidos} na fila da base`}
+                    </span>
+                  ) : aiPrediction?.confianca ? (
+                    null
+                  ) : null}
+                </div>
+
+                {isAiLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-blue-700 py-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                    <span>Calculando estimativa de {status === 'PENDENTE' ? 'confirmação' : 'entrega'}...</span>
+                  </div>
+                ) : aiPrediction ? (
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-bold text-blue-950">
+                      {status === 'PENDENTE' ? 'Confirmação estimada' : 'Chegada estimada'}: {formatEtaTimeDisplay(aiPrediction)}
+                    </p>
+                    <p className="text-xs text-blue-800 leading-relaxed">
+                      {aiPrediction.mensagem || aiPrediction.mensagem_humanizada}
+                    </p>
+                    {aiPrediction.tem_atraso_baseline ? (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Aviso: variação de ~{aiPrediction.delta_atraso_minutos || 0} min em relação ao horário acordado na confirmação</span>
+                      </div>
+                    ) : aiPrediction.risco_atraso ? (
+                      <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Atenção: {aiPrediction.motivo_risco || 'Possível variação na rota'}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium text-blue-950">
+                      {status === 'CONCLUIDO'
+                        ? 'Operação finalizada com sucesso.'
+                        : isCancelled
+                        ? 'Despacho encerrado.'
+                        : status === 'PENDENTE'
+                        ? 'Estimativa de aceite pelo posto: ~5 a 15 minutos.'
+                        : 'Estimativa de entrega: ~35 a 50 minutos.'}
+                    </p>
+                    <p className="text-xs text-blue-700 mt-1">
+                      Monitoramento contínuo do percurso e vazão de abastecimento em tempo real.
+                    </p>
+                  </>
+                )}
               </div>
             </div>
 

@@ -62,9 +62,6 @@ export const LoginPage = () => {
           <span className="text-xl font-bold tracking-tight text-gray-900">
             NAV<span className="text-blue-600">ROTAS</span>
           </span>
-          <span className="text-xs font-medium px-2 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">
-            Enterprise
-          </span>
         </div>
       </header>
 

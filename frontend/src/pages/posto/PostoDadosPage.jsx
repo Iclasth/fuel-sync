@@ -130,7 +130,7 @@ export const PostoDadosPage = () => {
 
   return (
     <AppLayout>
-      <div className="max-w-4xl mx-auto space-y-6 font-sans">
+      <div className="w-full space-y-6 font-sans">
         {/* Cabeçalho da Página */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>

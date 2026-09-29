@@ -89,9 +89,6 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
             <span className="text-lg font-bold tracking-tight text-white">
               NAV<span className="text-blue-500">ROTAS</span>
             </span>
-            <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-900/60 text-blue-300 border border-blue-700/50">
-              {getRoleLabel(user?.role)}
-            </span>
           </div>
         </div>
 
@@ -219,8 +216,8 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
         )}
 
         {/* Content Body with strict overflow handling */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50">
-          <div className="max-w-6xl mx-auto w-full">{children}</div>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-gray-50">
+          <div className="w-full">{children}</div>
         </main>
       </div>
     </div>

@@ -140,7 +140,7 @@ const listOrders = async (user, filters = {}) => {
         courierId = courier.id;
     }
 
-    let query = supabase.from('pedidos').select('*, entregador:entregadores (id, nome, telefone, veiculo_descricao, placa)');
+    let query = supabase.from('pedidos').select('*, posto:postos (id, nome_fantasia, razao_social, cnpj, telefone, endereco, latitude, longitude, tempo_medio_preparo_minutos), entregador:entregadores (id, nome, telefone, veiculo_descricao, placa)');
 
     if (customerId) {
         query = query.eq('cliente_id', customerId);
@@ -182,7 +182,7 @@ const getOrderById = async (orderId, user) => {
 
     const { data: order, error } = await supabase
         .from('pedidos')
-        .select('*, itens_pedido (*), entregador:entregadores (id, nome, telefone, veiculo_descricao, placa)')
+        .select('*, posto:postos (id, nome_fantasia, razao_social, cnpj, telefone, endereco, latitude, longitude, tempo_medio_preparo_minutos), itens_pedido (*), entregador:entregadores (id, nome, telefone, veiculo_descricao, placa)')
         .eq('id', Number(orderId))
         .single();
 
@@ -258,6 +258,24 @@ const updateOrderStatus = async (orderId, newStatus, entregadorId = null, user =
     }
 
     const updatedOrder = data[0];
+
+    // Geração de baseline oficial de entrega no momento do aceite pelo posto
+    if (statusToUpdate === OrderStatus.CONFIRMADO_POSTO) {
+        try {
+            const aiService = require('../ai/aiService');
+            aiService.predictEtaForOrder({
+                orderId: Number(orderId),
+                destination: (updatedOrder.destino_latitude && updatedOrder.destino_longitude) ? {
+                    latitude: Number(updatedOrder.destino_latitude),
+                    longitude: Number(updatedOrder.destino_longitude),
+                    tipo_local: updatedOrder.tipo_local || 'MARINA',
+                    ponto_referencia: updatedOrder.ponto_referencia || ''
+                } : null
+            }).catch(err => {
+                console.warn('Aviso: Falha ao gerar baseline na confirmação do pedido:', err.message);
+            });
+        } catch (_) {}
+    }
 
     // Atualização de status operacional do entregador na tabela entregadores
     if (statusToUpdate === OrderStatus.EM_TRANSPORTE && targetEntregadorId) {
