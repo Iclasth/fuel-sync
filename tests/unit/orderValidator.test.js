@@ -66,15 +66,25 @@ describe('Unit: Order Validator (src/modules/orders/orderValidator)', () => {
     });
 
     describe('validateUpdateOrderStatus', () => {
-        it('TC-ORD-VAL-08: deve aprovar status válidos do OrderStatus', () => {
-            expect(validateUpdateOrderStatus({ status: 'CONFIRMADO_POSTO' })).toBe(OrderStatus.CONFIRMADO_POSTO);
-            expect(validateUpdateOrderStatus({ status: 'EM_TRANSPORTE' })).toBe(OrderStatus.EM_TRANSPORTE);
-            expect(validateUpdateOrderStatus({ status: 'CANCELADO' })).toBe(OrderStatus.CANCELADO);
+        it('TC-ORD-VAL-08: deve aprovar status válidos do OrderStatus e entregador_id opcional', () => {
+            expect(validateUpdateOrderStatus({ status: 'CONFIRMADO_POSTO' })).toEqual({
+                status: OrderStatus.CONFIRMADO_POSTO,
+                entregador_id: null
+            });
+            expect(validateUpdateOrderStatus({ status: 'EM_TRANSPORTE', entregador_id: '5' })).toEqual({
+                status: OrderStatus.EM_TRANSPORTE,
+                entregador_id: 5
+            });
+            expect(validateUpdateOrderStatus({ status: 'CANCELADO' })).toEqual({
+                status: OrderStatus.CANCELADO,
+                entregador_id: null
+            });
         });
 
-        it('TC-ORD-VAL-09: deve rejeitar status desconhecido', () => {
+        it('TC-ORD-VAL-09: deve rejeitar status desconhecido ou entregador_id inválido', () => {
             expect(() => validateUpdateOrderStatus({ status: 'ENTREGANDO_AGORA' })).toThrow(/status.*inválido/i);
             expect(() => validateUpdateOrderStatus({})).toThrow(/status.*obrigatório/i);
+            expect(() => validateUpdateOrderStatus({ status: 'EM_TRANSPORTE', entregador_id: 'invalido' })).toThrow(/entregador_id.*numérico válido/i);
         });
     });
 });

@@ -66,6 +66,63 @@ describe('Integration: Courier Routes (/api/v1/couriers)', () => {
         });
     });
 
+    describe('GET /api/v1/couriers/me', () => {
+        it('TC-CR-API-11: deve retornar perfil do entregador logado com status 200', async () => {
+            mockAuthUser('entregador', 'usr-courier-1');
+
+            const mockCourier = {
+                id: 5,
+                usuario_id: 'usr-courier-1',
+                nome: 'Carlos Santos',
+                placa: 'BRA2E19',
+                status: 'DISPONIVEL'
+            };
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/couriers/me')
+                .set('Authorization', 'Bearer valid-courier-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('id', 5);
+            expect(res.body).toHaveProperty('nome', 'Carlos Santos');
+        });
+
+        it('TC-CR-API-12: deve retornar 404 se perfil de entregador não existir', async () => {
+            mockAuthUser('entregador', 'usr-courier-unknown');
+
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/couriers/me')
+                .set('Authorization', 'Bearer valid-courier-token');
+
+            expect(res.status).toBe(404);
+        });
+
+        it('TC-CR-API-13: deve retornar 403 se cliente tentar acessar /couriers/me', async () => {
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const res = await request(app)
+                .get('/api/v1/couriers/me')
+                .set('Authorization', 'Bearer valid-customer-token');
+
+            expect(res.status).toBe(403);
+        });
+    });
+
     describe('GET /api/v1/couriers/:id', () => {
         it('TC-CR-API-04: deve retornar detalhes do entregador com status 200', async () => {
             mockAuthUser('entregador');

@@ -1,126 +1,184 @@
-// import React from 'react';
-// import { Routes, Route, Navigate } from 'react-router-dom';
-// import ProtectedRoute from './ProtectedRoute';
-// import useAuth from '../hooks/useAuth';
-
-// // Páginas de Autenticação
-// import LoginPage from '../pages/auth/LoginPage';
-// import RegisterPage from '../pages/auth/RegisterPage';
-
-// // Módulos Operacionais e de Gestão
-// import HomePage from '../pages/HomePage';
-// import OrderTrackingPage from '../pages/OrderTrackingPage';
-// import ComprarCombustivelPage from '../pages/ComprarCombustivelPage';
-// import EnderecosPage from '../pages/EnderecosPage';
-
-// const PublicRoute = ({ children }) => {
-//   const { isAuthenticated, isLoading } = useAuth();
-//   if (isLoading) {
-//     return (
-//       <div className="flex min-h-screen items-center justify-center bg-slate-950">
-//         <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" />
-//       </div>
-//     );
-//   }
-//   return isAuthenticated ? <Navigate to="/" replace /> : children;
-// };
-
-// export const AppRoutes = () => {
-//   return (
-//     <Routes>
-//       {/* Fluxo de Autenticação */}
-//       <Route
-//         path="/login"
-//         element={
-//           <PublicRoute>
-//             <LoginPage />
-//           </PublicRoute>
-//         }
-//       />
-      
-//       <Route
-//         path="/cadastro"
-//         element={
-//           <PublicRoute>
-//             <RegisterPage />
-//           </PublicRoute>
-//         }
-//       />
-
-//       {/* Módulos Operacionais Protegidos */}
-//       <Route
-//         path="/"
-//         element={
-//           <ProtectedRoute>
-//             <HomePage />
-//           </ProtectedRoute>
-//         }
-//       />
-
-//       <Route
-//         path="/comprar"
-//         element={
-//           <ProtectedRoute>
-//             <ComprarCombustivelPage />
-//           </ProtectedRoute>
-//         }
-//       />
-
-//       <Route
-//         path="/rastreio"
-//         element={
-//           <ProtectedRoute>
-//             <OrderTrackingPage />
-//           </ProtectedRoute>
-//         }
-//       />
-
-//       <Route
-//         path="/enderecos"
-//         element={
-//           <ProtectedRoute>
-//             <EnderecosPage />
-//           </ProtectedRoute>
-//         }
-//       />
-
-//       {/* Redirecionamento Padrão (Fallback) */}
-//       <Route path="*" element={<Navigate to="/" replace />} />
-//     </Routes>
-//   );
-// };
-
-// export default AppRoutes;
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import ProtectedRoute from './ProtectedRoute';
+import RoleRoute from './RoleRoute';
+import useAuth from '../hooks/useAuth';
 
 // Páginas de Autenticação
 import LoginPage from '../pages/auth/LoginPage';
 import RegisterPage from '../pages/auth/RegisterPage';
 
-// Módulos Operacionais e de Gestão
+// Módulos Operacionais do Cliente
 import HomePage from '../pages/HomePage';
+import PerfilPage from '../pages/PerfilPage';
 import OrderTrackingPage from '../pages/OrderTrackingPage';
 import ComprarCombustivelPage from '../pages/ComprarCombustivelPage';
 import EnderecosPage from '../pages/EnderecosPage';
 
-export const AppRoutesTest = () => {
+// Módulos de Gestão do Posto (posto_admin e admin_geral)
+import PostoPedidosPage from '../pages/posto/PostoPedidosPage';
+import PostoCatalogoPage from '../pages/posto/PostoCatalogoPage';
+import PostoEntregadoresPage from '../pages/posto/PostoEntregadoresPage';
+import PostoDadosPage from '../pages/posto/PostoDadosPage';
+
+// Módulos de Administração Geral (admin_geral)
+import AdminPostosPage from '../pages/admin/AdminPostosPage';
+import AdminVinculosPage from '../pages/admin/AdminVinculosPage';
+
+export const PublicRoute = ({ children }) => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-900 border-t-transparent" />
+          <p className="text-sm font-medium text-gray-600">Carregando sessão...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <Navigate to="/" replace /> : children;
+};
+
+export const AppRoutes = () => {
   return (
     <Routes>
-      {/* Rotas de Acesso (Livres para teste) */}
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/cadastro" element={<RegisterPage />} />
+      {/* Fluxo de Autenticação (Público) */}
+      <Route
+        path="/login"
+        element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        }
+      />
 
-      {/* Módulos Operacionais (Livres para teste) */}
-      <Route path="/" element={<HomePage />} />
-      <Route path="/comprar" element={<ComprarCombustivelPage />} />
-      <Route path="/rastreio" element={<OrderTrackingPage />} />
-      <Route path="/enderecos" element={<EnderecosPage />} />
+      <Route
+        path="/cadastro"
+        element={
+          <PublicRoute>
+            <RegisterPage />
+          </PublicRoute>
+        }
+      />
 
-      {/* Redirecionamento Padrão */}
+      {/* Módulos do Cliente (Protegidos) */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <HomePage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/perfil"
+        element={
+          <ProtectedRoute>
+            <PerfilPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/comprar"
+        element={
+          <RoleRoute allowedRoles={['cliente', 'admin_geral']}>
+            <ComprarCombustivelPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/rastreio"
+        element={
+          <ProtectedRoute>
+            <OrderTrackingPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/enderecos"
+        element={
+          <RoleRoute allowedRoles={['cliente', 'admin_geral']}>
+            <EnderecosPage />
+          </RoleRoute>
+        }
+      />
+
+      {/* Módulos de Gestão do Posto (Restrito a posto_admin e admin_geral) */}
+      <Route
+        path="/posto/pedidos"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoPedidosPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/precos"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoCatalogoPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/catalogo"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoCatalogoPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/dados"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoDadosPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/posto/entregadores"
+        element={
+          <RoleRoute allowedRoles={['posto_admin', 'admin_geral']}>
+            <PostoEntregadoresPage />
+          </RoleRoute>
+        }
+      />
+
+      {/* Módulos de Administração Geral (Restrito a admin_geral) */}
+      <Route
+        path="/admin/postos"
+        element={
+          <RoleRoute allowedRoles={['admin_geral']}>
+            <AdminPostosPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/admin/vinculos"
+        element={
+          <RoleRoute allowedRoles={['admin_geral']}>
+            <AdminVinculosPage />
+          </RoleRoute>
+        }
+      />
+
+      {/* Redirecionamento Padrão (Fallback) */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
 
-export default AppRoutesTest;
+export default AppRoutes;

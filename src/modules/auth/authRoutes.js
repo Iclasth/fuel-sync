@@ -3,7 +3,8 @@ const authController = require('./authController');
 const {
     validateCustomerSignup,
     validateLogin,
-    validateCreateCourier
+    validateCreateCourier,
+    validateRefreshToken
 } = require('./authValidator');
 const authMiddleware = require('../../common/middlewares/authMiddleware');
 const authorizeRole = require('../../common/middlewares/roleMiddleware');
@@ -91,6 +92,35 @@ router.post('/signup/customer', validateCustomerSignup, authController.signupCus
  *         description: Credenciais inválidas
  */
 router.post('/login', validateLogin, authController.login);
+
+/**
+ * @openapi
+ * /api/v1/auth/refresh:
+ *   post:
+ *     summary: Renova access token expirado utilizando refresh token válido
+ *     tags:
+ *       - Autenticação
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - refreshToken
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *                 example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *     responses:
+ *       200:
+ *         description: Sessão renovada com sucesso
+ *       400:
+ *         description: Refresh token não informado
+ *       401:
+ *         description: Sessão expirada ou refresh token inválido
+ */
+router.post('/refresh', validateRefreshToken, authController.refresh);
 
 /**
  * @openapi

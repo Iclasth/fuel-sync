@@ -35,6 +35,31 @@ router.get(
 
 /**
  * @openapi
+ * /api/v1/couriers/me:
+ *   get:
+ *     summary: Obtém o perfil do entregador autenticado
+ *     tags: [Couriers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dados do entregador autenticado
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado
+ *       404:
+ *         description: Perfil de entregador não encontrado
+ */
+router.get(
+    '/me',
+    authMiddleware,
+    roleMiddleware([UserRoles.ENTREGADOR, UserRoles.POSTO_ADMIN]),
+    courierController.getCourierMe
+);
+
+/**
+ * @openapi
  * /api/v1/couriers/{id}:
  *   get:
  *     summary: Obtém detalhes de um entregador pelo ID

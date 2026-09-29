@@ -79,6 +79,31 @@ router.get(
 
 /**
  * @openapi
+ * /api/v1/stations/me:
+ *   get:
+ *     summary: Obtém os dados e métricas do posto vinculado ao administrador logado
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dados do posto do administrador com métricas operacionais
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado (apenas posto_admin e admin_geral)
+ *       404:
+ *         description: Nenhum posto vinculado ao perfil
+ */
+router.get(
+    '/me',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.getMyStation
+);
+
+/**
+ * @openapi
  * /api/v1/stations/{id}:
  *   get:
  *     summary: Obtém detalhes de um posto pelo ID
@@ -127,15 +152,184 @@ router.get(
  *       401:
  *         description: Não autenticado
  *       403:
- *         description: Não autorizado (apenas posto_admin)
+ *         description: Não autorizado (posto_admin ou admin_geral)
  *       404:
  *         description: Posto não encontrado
  */
 router.put(
     '/:id',
     authMiddleware,
-    roleMiddleware([UserRoles.POSTO_ADMIN]),
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
     stationController.updateStation
 );
 
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels:
+ *   get:
+ *     summary: Lista combustíveis e preços praticados pelo posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de combustíveis do posto
+ */
+router.get(
+    '/:stationId/fuels',
+    authMiddleware,
+    stationController.getStationFuels
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels:
+ *   post:
+ *     summary: Cadastra combustível com preço e estoque no posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       201:
+ *         description: Combustível cadastrado no posto com sucesso
+ */
+router.post(
+    '/:stationId/fuels',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.createStationFuel
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels/{combustivelId}:
+ *   put:
+ *     summary: Atualiza preço e estoque do combustível no posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: combustivelId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Preço do combustível atualizado no posto
+ */
+router.put(
+    '/:stationId/fuels/:combustivelId',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.updateStationFuel
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels/{combustivelId}/history:
+ *   get:
+ *     summary: Consulta o histórico auditado de alterações de preços
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: combustivelId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Histórico de preços do combustível
+ */
+router.get(
+    '/:stationId/fuels/:combustivelId/history',
+    authMiddleware,
+    stationController.getStationFuelHistory
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/admins:
+ *   get:
+ *     summary: Lista administradores vinculados ao posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de administradores do posto
+ */
+router.get(
+    '/:stationId/admins',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.getStationAdmins
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/admins:
+ *   post:
+ *     summary: Vincula um usuário posto_admin ao posto físico
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [user_id]
+ *             properties:
+ *               user_id:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Administrador vinculado com sucesso
+ */
+router.post(
+    '/:stationId/admins',
+    authMiddleware,
+    roleMiddleware([UserRoles.ADMIN_GERAL]),
+    stationController.assignStationAdmin
+);
+
 module.exports = router;
+

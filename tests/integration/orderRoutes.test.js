@@ -87,17 +87,28 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
                             single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
                         })
                     })
-                }) // Busca cliente
+                }) // 1. Busca cliente
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                }) // 2. Consulta posto_combustiveis
                 .mockReturnValueOnce({
                     insert: jest.fn().mockReturnValue({
                         select: jest.fn().mockResolvedValue({ data: [mockOrder], error: null })
                     })
-                }) // Insere pedido
+                }) // 3. Insere pedido
                 .mockReturnValueOnce({
                     insert: jest.fn().mockReturnValue({
                         select: jest.fn().mockResolvedValue({ data: mockItems, error: null })
                     })
-                }); // Insere itens
+                }); // 4. Insere itens
 
             const res = await request(app)
                 .post('/api/v1/orders')
@@ -108,6 +119,47 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
             expect(res.body).toHaveProperty('id', 100);
             expect(res.body).toHaveProperty('valor_total', 1010.00);
             expect(res.body.itens.length).toBe(2);
+        });
+
+        it('TC-ORD-API-ANTIFRAUD: deve bloquear pedido com 400 se cliente tentar fraudar preço unitário', async () => {
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const mockCustomer = { id: 10, usuario_id: 'usr-cliente-1', nome: 'Cliente Teste' };
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
+                        })
+                    })
+                }) // 1. Busca cliente
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                }); // 2. Consulta posto_combustiveis
+
+            // Cliente tenta passar R$ 1.00 ao invés de R$ 6.50
+            const fraudulentPayload = {
+                ...validPayload,
+                itens: [
+                    { combustivel_id: 1, quantidade_litros: 100, valor_unitario: 1.00 }
+                ]
+            };
+
+            const res = await request(app)
+                .post('/api/v1/orders')
+                .set('Authorization', 'Bearer valid-customer-token')
+                .send(fraudulentPayload);
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toMatch(/Preço unitário divergente/i);
         });
 
         it('TC-ORD-API-03: deve rejeitar com 400 se itens estiverem vazios', async () => {
@@ -181,6 +233,37 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
             expect(res.status).toBe(200);
             expect(Array.isArray(res.body)).toBe(true);
             expect(res.body[0]).toHaveProperty('posto_id', 1);
+        });
+
+        it('TC-ORD-API-06-B: deve permitir que entregador liste apenas os pedidos designados para ele com status 200', async () => {
+            mockAuthUser('entregador', 'usr-courier-1');
+
+            const mockCourier = { id: 5, usuario_id: 'usr-courier-1' };
+            const mockOrders = [
+                { id: 100, entregador_id: 5, valor_total: 1010.00, status: OrderStatus.EM_TRANSPORTE }
+            ];
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({ data: mockOrders, error: null })
+                    })
+                });
+
+            const res = await request(app)
+                .get('/api/v1/orders')
+                .set('Authorization', 'Bearer valid-courier-token');
+
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body[0]).toHaveProperty('entregador_id', 5);
         });
     });
 
@@ -271,6 +354,36 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
             expect(res.status).toBe(403);
             expect(res.body).toHaveProperty('error');
         });
+
+        it('TC-ORD-API-09-B: deve retornar 403 se entregador tentar acessar pedido de outro entregador', async () => {
+            mockAuthUser('entregador', 'usr-courier-1');
+
+            const mockCourier = { id: 5, usuario_id: 'usr-courier-1' };
+            const mockOtherOrder = { id: 200, entregador_id: 99, status: OrderStatus.EM_TRANSPORTE };
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockOtherOrder, error: null })
+                        })
+                    })
+                });
+
+            const res = await request(app)
+                .get('/api/v1/orders/200')
+                .set('Authorization', 'Bearer valid-courier-token');
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/não está atribuído a você/i);
+        });
     });
 
     describe('PATCH /api/v1/orders/:id/status', () => {
@@ -315,6 +428,79 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
                 .send({ status: 'STATUS_INVALIDO' });
 
             expect(res.status).toBe(400);
+        });
+
+        it('TC-ORD-API-12-A: deve rejeitar despacho para EM_TRANSPORTE sem entregador_id com status 400', async () => {
+            mockAuthUser('posto_admin');
+
+            const res = await request(app)
+                .patch('/api/v1/orders/100/status')
+                .set('Authorization', 'Bearer valid-admin-token')
+                .send({ status: OrderStatus.EM_TRANSPORTE });
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toMatch(/obrigatório selecionar o entregador responsável/i);
+        });
+
+        it('TC-ORD-API-12-B: deve despachar pedido com sucesso associando entregador_id com status 200', async () => {
+            mockAuthUser('posto_admin');
+
+            const mockUpdated = { id: 100, status: OrderStatus.EM_TRANSPORTE, entregador_id: 3 };
+            supabase.from.mockReturnValueOnce({
+                update: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .patch('/api/v1/orders/100/status')
+                .set('Authorization', 'Bearer valid-admin-token')
+                .send({ status: OrderStatus.EM_TRANSPORTE, entregador_id: 3 });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('status', OrderStatus.EM_TRANSPORTE);
+            expect(res.body).toHaveProperty('entregador_id', 3);
+        });
+
+        it('TC-ORD-API-12-C: deve permitir que entregador conclua entrega (CONCLUIDO) de pedido designado a ele', async () => {
+            mockAuthUser('entregador', 'usr-courier-1');
+
+            const mockCourier = { id: 5, usuario_id: 'usr-courier-1' };
+            const mockCurrentOrder = { id: 100, status: OrderStatus.EM_TRANSPORTE, entregador_id: 5 };
+            const mockUpdated = { id: 100, status: OrderStatus.CONCLUIDO, entregador_id: 5 };
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                        })
+                    })
+                }) // Busca entregador
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCurrentOrder, error: null })
+                        })
+                    })
+                }) // Busca pedido atual
+                .mockReturnValueOnce({
+                    update: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+                        })
+                    })
+                }); // Atualiza pedido para CONCLUIDO
+
+            const res = await request(app)
+                .patch('/api/v1/orders/100/status')
+                .set('Authorization', 'Bearer valid-courier-token')
+                .send({ status: OrderStatus.CONCLUIDO });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('status', OrderStatus.CONCLUIDO);
         });
     });
 

@@ -4,7 +4,13 @@ const supabase = require('../../src/config/supabaseClient');
 jest.mock('../../src/config/supabaseClient', () => ({
     auth: {
         getUser: jest.fn()
-    }
+    },
+    from: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnThis(),
+        eq: jest.fn().mockReturnThis(),
+        maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }),
+        upsert: jest.fn().mockResolvedValue({ data: null, error: null })
+    })
 }));
 
 describe('Unit: authMiddleware', () => {
@@ -85,6 +91,7 @@ describe('Unit: authMiddleware', () => {
             id: 'usr-uuid-1234',
             email: 'cliente@teste.com',
             role: 'cliente',
+            name: 'João Silva',
             metadata: {
                 role: 'cliente',
                 nome: 'João Silva',
@@ -93,5 +100,39 @@ describe('Unit: authMiddleware', () => {
         });
         expect(next).toHaveBeenCalledTimes(1);
         expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('TC-SEC-05: deve priorizar a role da tabela perfis_usuarios caso divirja do user_metadata', async () => {
+        supabase.from._mockPerfisUsuarios = true;
+        req.headers.authorization = 'Bearer token-promovido';
+        supabase.auth.getUser.mockResolvedValueOnce({
+            data: {
+                user: {
+                    id: 'usr-admin-789',
+                    email: 'gerente@posto.com',
+                    user_metadata: {
+                        role: 'cliente', // No Auth consta cliente
+                        nome: 'Gerente Carlos'
+                    }
+                }
+            },
+            error: null
+        });
+
+        // Simula que no banco PostgreSQL (perfis_usuarios) o usuário foi promovido para 'posto_admin'
+        supabase.from.mockReturnValueOnce({
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            maybeSingle: jest.fn().mockResolvedValue({
+                data: { role: 'posto_admin', nome: 'Gerente Carlos Promovido' },
+                error: null
+            })
+        });
+
+        await authMiddleware(req, res, next);
+
+        expect(req.user.role).toBe('posto_admin');
+        expect(req.user.name).toBe('Gerente Carlos Promovido');
+        expect(next).toHaveBeenCalledTimes(1);
     });
 });

@@ -29,6 +29,33 @@ describe('Integration: Catalog Routes (/api/v1/catalog)', () => {
         jest.clearAllMocks();
     });
 
+    describe('GET /api/v1/catalog (alias)', () => {
+        it('TC-CAT-API-01-A: deve rejeitar rota raiz sem autenticação com status 401', async () => {
+            const res = await request(app).get('/api/v1/catalog');
+            expect(res.status).toBe(401);
+        });
+
+        it('TC-CAT-API-02-A: deve retornar lista de combustíveis na rota raiz com status 200', async () => {
+            mockAuthUser('cliente');
+
+            const mockFuels = [
+                { id: 1, nome: 'Gasolina Comum', unidade_medida: 'LITROS' }
+            ];
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockResolvedValue({ data: mockFuels, error: null })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/catalog')
+                .set('Authorization', 'Bearer valid-customer-token');
+
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body.length).toBe(1);
+            expect(res.body[0]).toHaveProperty('nome', 'Gasolina Comum');
+        });
+    });
+
     describe('GET /api/v1/catalog/fuels', () => {
         it('TC-CAT-API-01: deve rejeitar sem autenticação com status 401', async () => {
             const res = await request(app).get('/api/v1/catalog/fuels');
