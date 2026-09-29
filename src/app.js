@@ -22,6 +22,7 @@ const orderRoutes = require('./modules/orders/orderRoutes.js');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/customers', customerRoutes);
+app.use('/api/v1/customers', customerRoutes);
 app.use('/api/v1/stations', stationRoutes);
 app.use('/api/v1/couriers', courierRoutes);
 app.use('/api/v1/catalog', catalogRoutes);

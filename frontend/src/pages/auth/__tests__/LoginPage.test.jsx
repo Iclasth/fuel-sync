@@ -87,8 +87,8 @@ describe('LoginPage', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('navigates to destination upon successful login', async () => {
-    mockLogin.mockResolvedValueOnce({ id: '1', email: 'user@fuelsync.com' });
+  it('navigates to destination upon successful login for client', async () => {
+    mockLogin.mockResolvedValueOnce({ id: '1', email: 'user@fuelsync.com', role: 'cliente' });
 
     renderWithContext();
 
@@ -104,6 +104,44 @@ describe('LoginPage', () => {
     await waitFor(() => {
       expect(mockLogin).toHaveBeenCalledWith('user@fuelsync.com', 'secret123');
       expect(mockNavigate).toHaveBeenCalledWith('/', { replace: true });
+    });
+  });
+
+  it('navigates to /posto/pedidos upon successful login for posto_admin', async () => {
+    mockLogin.mockResolvedValueOnce({ id: '2', email: 'admin@posto.com', role: 'posto_admin' });
+
+    renderWithContext();
+
+    fireEvent.change(screen.getByPlaceholderText('usuario@dominio.com'), {
+      target: { value: 'admin@posto.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'secret123' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Entrar na Plataforma/i }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/posto/pedidos', { replace: true });
+    });
+  });
+
+  it('navigates to /admin/postos upon successful login for admin_geral', async () => {
+    mockLogin.mockResolvedValueOnce({ id: '3', email: 'general@fuelsync.com', role: 'admin_geral' });
+
+    renderWithContext();
+
+    fireEvent.change(screen.getByPlaceholderText('usuario@dominio.com'), {
+      target: { value: 'general@fuelsync.com' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('••••••••'), {
+      target: { value: 'secret123' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Entrar na Plataforma/i }));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/admin/postos', { replace: true });
     });
   });
 });

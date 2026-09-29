@@ -42,9 +42,19 @@ const updateCourierLocation = async (req, res, next) => {
     }
 };
 
+const getCourierMe = async (req, res, next) => {
+    try {
+        const courier = await courierService.getCourierByUserId(req.user.id);
+        return res.status(200).json(courier);
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     getCouriers,
     getCourierById,
+    getCourierMe,
     updateCourierStatus,
     updateCourierLocation
 };

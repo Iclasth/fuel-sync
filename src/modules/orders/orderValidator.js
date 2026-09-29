@@ -71,7 +71,7 @@ function validateCreateOrder(payload = {}, user = {}) {
 }
 
 function validateUpdateOrderStatus(payload = {}) {
-    const { status } = payload;
+    const { status, entregador_id } = payload;
 
     if (!status || !String(status).trim()) {
         throw new AppError('O campo status é obrigatório.', 400);
@@ -85,7 +85,19 @@ function validateUpdateOrderStatus(payload = {}) {
         );
     }
 
-    return trimmed;
+    let parsedEntregadorId = null;
+    if (entregador_id !== undefined && entregador_id !== null && entregador_id !== '') {
+        const idNum = Number(entregador_id);
+        if (isNaN(idNum) || idNum <= 0) {
+            throw new AppError('O campo entregador_id deve ser um identificador numérico válido.', 400);
+        }
+        parsedEntregadorId = idNum;
+    }
+
+    return {
+        status: trimmed,
+        entregador_id: parsedEntregadorId
+    };
 }
 
 module.exports = {

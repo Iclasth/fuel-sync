@@ -161,7 +161,7 @@ router.get(
 router.patch(
     '/:id/status',
     authMiddleware,
-    roleMiddleware([UserRoles.POSTO_ADMIN]),
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ENTREGADOR]),
     orderController.updateOrderStatus
 );
 

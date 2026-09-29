@@ -16,7 +16,11 @@ class UserProfile {
     }
 
     isAdmin() {
-        return this.role === UserRoles.POSTO_ADMIN;
+        return this.role === UserRoles.POSTO_ADMIN || this.role === UserRoles.ADMIN_GERAL;
+    }
+
+    isGeneralAdmin() {
+        return this.role === UserRoles.ADMIN_GERAL;
     }
 
     isCourier() {

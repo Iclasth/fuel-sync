@@ -183,8 +183,23 @@ describe('Integration: Station Routes (/api/v1/stations)', () => {
         });
 
         it('TC-ST-API-10: deve atualizar posto com status 200 quando for posto_admin', async () => {
-            mockAuthUser('posto_admin');
+            mockAuthUser('posto_admin', 'usr-admin-1');
 
+            // 1. Validação de acesso em posto_administradores
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({
+                                data: { user_id: 'usr-admin-1', posto_id: 1 },
+                                error: null
+                            })
+                        })
+                    })
+                })
+            });
+
+            // 2. Atualização dos dados em postos
             const mockUpdated = { id: 1, nome_fantasia: 'Posto Marina', tempo_medio_preparo_minutos: 20 };
             supabase.from.mockReturnValueOnce({
                 update: jest.fn().mockReturnValue({
@@ -201,6 +216,208 @@ describe('Integration: Station Routes (/api/v1/stations)', () => {
 
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('tempo_medio_preparo_minutos', 20);
+        });
+
+        it('TC-ST-API-11: deve rejeitar PUT com status 403 se posto_admin não administrar o posto', async () => {
+            mockAuthUser('posto_admin', 'usr-nao-autorizado');
+
+            // Vínculo não encontrado
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .put('/api/v1/stations/1')
+                .set('Authorization', 'Bearer valid-admin-token')
+                .send({ tempo_medio_preparo_minutos: 25 });
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/Acesso negado: seu perfil não administra este posto/i);
+        });
+    });
+
+    describe('GET /api/v1/stations/me', () => {
+        it('TC-ST-API-12: deve rejeitar acesso com status 403 se perfil for cliente', async () => {
+            mockAuthUser('cliente');
+
+            const res = await request(app)
+                .get('/api/v1/stations/me')
+                .set('Authorization', 'Bearer valid-token');
+
+            expect(res.status).toBe(403);
+        });
+
+        it('TC-ST-API-13: deve retornar 404 se posto_admin não tiver posto vinculado', async () => {
+            mockAuthUser('posto_admin', 'usr-sem-posto');
+
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({ data: [], error: null })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/me')
+                .set('Authorization', 'Bearer valid-admin-token');
+
+            expect(res.status).toBe(404);
+            expect(res.body.error).toMatch(/Nenhum posto de abastecimento vinculado ao seu perfil/i);
+        });
+
+        it('TC-ST-API-14: deve retornar os dados do posto vinculado com status 200', async () => {
+            mockAuthUser('posto_admin', 'usr-admin-1');
+
+            // 1. Busca em posto_administradores
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({
+                        data: [{ id: 'link-1', user_id: 'usr-admin-1', posto_id: 1 }],
+                        error: null
+                    })
+                })
+            });
+
+            // 2. Busca do posto em postos
+            const mockStation = {
+                id: 1,
+                nome_fantasia: 'Auto Posto Náutico Imperial',
+                razao_social: 'Auto Posto Imperial Ltda',
+                cnpj: '12345678000199',
+                telefone: '2133334444',
+                endereco: 'Av. Marina Imperial, 100',
+                latitude: -22.92,
+                longitude: -43.17,
+                tempo_medio_preparo_minutos: 15,
+                ativo: true
+            };
+
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockStation, error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/me')
+                .set('Authorization', 'Bearer valid-admin-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('id', 1);
+            expect(res.body).toHaveProperty('nome_fantasia', 'Auto Posto Náutico Imperial');
+            expect(res.body).toHaveProperty('stats');
+        });
+    });
+
+    describe('Station Fuels and Pricing (/api/v1/stations/:stationId/fuels)', () => {
+        it('TC-ST-FUEL-01: deve listar os combustíveis do posto com status 200', async () => {
+            mockAuthUser('cliente');
+            const mockFuels = [
+                { id: 'uuid-1', posto_id: 1, combustivel_id: 1, preco_litro: 5.89, disponivel: true }
+            ];
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({ data: mockFuels, error: null })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/1/fuels')
+                .set('Authorization', 'Bearer valid-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(mockFuels);
+        });
+
+        it('TC-ST-FUEL-02: deve rejeitar cadastro de combustível se posto_admin não for do posto (403)', async () => {
+            mockAuthUser('posto_admin', 'usr-unauthorized');
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/stations/1/fuels')
+                .set('Authorization', 'Bearer admin-token')
+                .send({ combustivel_id: 1, preco_litro: 6.50 });
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/não administra este posto/i);
+        });
+
+        it('TC-ST-FUEL-03: deve permitir cadastro de combustível para admin_geral sem checar posto_administradores', async () => {
+            mockAuthUser('admin_geral', 'usr-general-admin');
+            const mockCreated = { id: 'uuid-2', posto_id: 1, combustivel_id: 1, preco_litro: 6.50 };
+            supabase.from.mockReturnValueOnce({
+                insert: jest.fn().mockReturnValue({
+                    select: jest.fn().mockResolvedValue({ data: [mockCreated], error: null })
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/stations/1/fuels')
+                .set('Authorization', 'Bearer general-token')
+                .send({ combustivel_id: 1, preco_litro: 6.50 });
+
+            expect(res.status).toBe(201);
+            expect(res.body).toEqual(mockCreated);
+        });
+
+        it('TC-ST-FUEL-04: deve atualizar preço de combustível com status 200', async () => {
+            mockAuthUser('admin_geral');
+            const mockUpdated = { id: 'uuid-1', posto_id: 1, combustivel_id: 1, preco_litro: 7.10 };
+            supabase.from.mockReturnValueOnce({
+                update: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .put('/api/v1/stations/1/fuels/1')
+                .set('Authorization', 'Bearer token')
+                .send({ preco_litro: 7.10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.preco_litro).toBe(7.10);
+        });
+
+        it('TC-ST-FUEL-05: deve consultar histórico auditado de preços com status 200', async () => {
+            mockAuthUser('cliente');
+            const mockHistory = [
+                { id: 'h-1', preco_anterior: 6.50, preco_novo: 7.10, alterado_em: '2026-09-28T10:00:00Z' }
+            ];
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            order: jest.fn().mockResolvedValue({ data: mockHistory, error: null })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/1/fuels/1/history')
+                .set('Authorization', 'Bearer token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(mockHistory);
         });
     });
 });

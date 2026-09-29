@@ -118,10 +118,27 @@ const validateCreateCourier = (req, res, next) => {
     next();
 };
 
+const validateRefreshToken = (req, res, next) => {
+    const { refreshToken } = req.body;
+    const errors = [];
+
+    if (!refreshToken || typeof refreshToken !== 'string' || refreshToken.trim().length === 0) {
+        errors.push('O campo "refreshToken" é obrigatório.');
+    }
+
+    if (errors.length > 0) {
+        return res.status(400).json({ error: 'Erro de validação', details: errors });
+    }
+
+    req.body.refreshToken = refreshToken.trim();
+    next();
+};
+
 module.exports = {
     isValidCPF,
     isValidEmail,
     validateCustomerSignup,
     validateLogin,
-    validateCreateCourier
+    validateCreateCourier,
+    validateRefreshToken
 };

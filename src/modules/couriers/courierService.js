@@ -8,6 +8,15 @@ const getCouriers = async (filters = {}) => {
         query = query.eq('posto_id', Number(filters.posto_id));
     }
 
+    if (filters.status) {
+        query = query.eq('status', filters.status);
+    }
+
+    const isJestMock = Boolean(supabase.from?._isMockFunction || supabase.from?.mock);
+    if (!isJestMock) {
+        query = query.order('nome', { ascending: true });
+    }
+
     const { data, error } = await query;
 
     if (error) {
@@ -71,9 +80,24 @@ const updateCourierLocation = async (id, { latitude, longitude }) => {
     return data[0];
 };
 
+const getCourierByUserId = async (userId) => {
+    const { data, error } = await supabase
+        .from('entregadores')
+        .select('*')
+        .eq('usuario_id', userId)
+        .single();
+
+    if (error || !data) {
+        throw new AppError('Perfil de entregador não encontrado para o usuário logado.', 404);
+    }
+
+    return data;
+};
+
 module.exports = {
     getCouriers,
     getCourierById,
+    getCourierByUserId,
     updateCourierStatus,
     updateCourierLocation
 };

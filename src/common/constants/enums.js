@@ -4,7 +4,8 @@
 const UserRoles = Object.freeze({
     CLIENTE: 'cliente',
     POSTO_ADMIN: 'posto_admin',
-    ENTREGADOR: 'entregador'
+    ENTREGADOR: 'entregador',
+    ADMIN_GERAL: 'admin_geral'
 });
 
 /**

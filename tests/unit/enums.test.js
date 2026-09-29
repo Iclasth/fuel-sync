@@ -14,7 +14,8 @@ describe('Unit: Domain Enums (src/common/constants/enums)', () => {
             expect(UserRoles).toEqual({
                 CLIENTE: 'cliente',
                 POSTO_ADMIN: 'posto_admin',
-                ENTREGADOR: 'entregador'
+                ENTREGADOR: 'entregador',
+                ADMIN_GERAL: 'admin_geral'
             });
         });
     });

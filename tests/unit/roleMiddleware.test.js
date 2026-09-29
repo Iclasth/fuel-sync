@@ -59,4 +59,34 @@ describe('Unit: roleMiddleware (RBAC)', () => {
         );
         expect(next).not.toHaveBeenCalled();
     });
+
+    it('TC-RBAC-05: deve conceder acesso a admin_geral em rotas destinadas a posto_admin', () => {
+        req.user = { id: '789', role: 'admin_geral' };
+        const middleware = authorizeRole('posto_admin');
+
+        middleware(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('TC-RBAC-06: deve conceder acesso a admin_geral em rotas exclusivas de admin_geral', () => {
+        req.user = { id: '789', role: 'admin_geral' };
+        const middleware = authorizeRole('admin_geral');
+
+        middleware(req, res, next);
+
+        expect(next).toHaveBeenCalledTimes(1);
+        expect(res.status).not.toHaveBeenCalled();
+    });
+
+    it('TC-RBAC-07: deve bloquear admin_geral em rotas exclusivas de cliente', () => {
+        req.user = { id: '789', role: 'admin_geral' };
+        const middleware = authorizeRole('cliente');
+
+        middleware(req, res, next);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(next).not.toHaveBeenCalled();
+    });
 });

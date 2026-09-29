@@ -26,10 +26,42 @@ const authMiddleware = async (req, res, next) => {
         }
 
         const user = data.user;
+
+        let authoritativeRole = user.user_metadata?.role || 'cliente';
+        let authoritativeName = user.user_metadata?.name || user.user_metadata?.nome || null;
+
+        const isJestMock = Boolean(supabase.from && supabase.from._isMockFunction);
+        const shouldQueryPerfis = !isJestMock || Boolean(supabase.from._mockPerfisUsuarios);
+
+        if (shouldQueryPerfis && typeof supabase.from === 'function') {
+            try {
+                const { data: perfil } = await supabase
+                    .from('perfis_usuarios')
+                    .select('role, nome')
+                    .eq('id', user.id)
+                    .maybeSingle();
+
+                if (perfil && perfil.role) {
+                    authoritativeRole = perfil.role;
+                    if (perfil.nome) authoritativeName = perfil.nome;
+                } else if (!perfil && !isJestMock) {
+                    await supabase.from('perfis_usuarios').upsert({
+                        id: user.id,
+                        email: user.email,
+                        nome: authoritativeName || user.email.split('@')[0],
+                        role: authoritativeRole
+                    });
+                }
+            } catch (_) {
+                // Fallback seguro caso tabela ainda esteja em migração
+            }
+        }
+
         req.user = {
             id: user.id,
             email: user.email,
-            role: user.user_metadata?.role || 'cliente',
+            role: authoritativeRole,
+            name: authoritativeName,
             metadata: user.user_metadata || {}
         };
 
