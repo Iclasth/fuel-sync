@@ -543,7 +543,7 @@ export const OrderTrackingPage = () => {
                 <p className="text-sm font-medium text-gray-900">{statusInfo.description}</p>
                 {!canCancel && !isCancelled && (
                   <p className="text-[11px] text-gray-500 mt-2">
-                    * Bloqueio antifraude e segurança: cancelamento desabilitado após o despacho do posto.
+                    * Cancelamento desabilitado após o despacho do posto.
                   </p>
                 )}
               </div>

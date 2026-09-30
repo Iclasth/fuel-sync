@@ -43,8 +43,27 @@ const createFuel = async (fuelData) => {
     return data && data.length > 0 ? data[0] : data;
 };
 
+const deleteFuel = async (id) => {
+    const { data, error } = await supabase
+        .from('combustiveis')
+        .delete()
+        .eq('id', Number(id))
+        .select();
+
+    if (error) {
+        throw new AppError(`Erro ao remover combustível: ${error.message}`, 500);
+    }
+
+    if (!data || data.length === 0) {
+        throw new AppError('Combustível não encontrado.', 404);
+    }
+
+    return data[0];
+};
+
 module.exports = {
     listFuels,
     getFuelById,
-    createFuel
+    createFuel,
+    deleteFuel
 };

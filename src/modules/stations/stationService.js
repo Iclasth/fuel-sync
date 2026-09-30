@@ -177,7 +177,11 @@ const validateStationAccess = async (user, stationId) => {
     throw new AppError('Acesso negado para o seu perfil.', 403);
 };
 
-const getStationFuels = async (stationId) => {
+const getStationFuels = async (stationId, user) => {
+    if (user && user.role === 'posto_admin') {
+        await validateStationAccess(user, stationId);
+    }
+
     const { data, error } = await supabase
         .from('posto_combustiveis')
         .select('*, combustiveis(*)')
@@ -268,7 +272,32 @@ const updateStationFuel = async (stationId, combustivelId, updateData, user) => 
     return data[0];
 };
 
-const getStationFuelHistory = async (stationId, combustivelId) => {
+const deleteStationFuel = async (stationId, combustivelId, user) => {
+    await validateStationAccess(user, stationId);
+
+    const { data, error } = await supabase
+        .from('posto_combustiveis')
+        .delete()
+        .eq('posto_id', Number(stationId))
+        .eq('combustivel_id', Number(combustivelId))
+        .select();
+
+    if (error) {
+        throw new AppError(`Erro ao remover combustível do posto: ${error.message}`, 500);
+    }
+
+    if (!data || data.length === 0) {
+        throw new AppError('Combustível não encontrado no catálogo deste posto.', 404);
+    }
+
+    return data[0];
+};
+
+const getStationFuelHistory = async (stationId, combustivelId, user) => {
+    if (user && user.role === 'posto_admin') {
+        await validateStationAccess(user, stationId);
+    }
+
     const { data, error } = await supabase
         .from('historico_precos_combustivel')
         .select('*')
@@ -293,7 +322,29 @@ const getStationAdmins = async (stationId) => {
         throw new AppError(`Erro ao consultar administradores do posto: ${error.message}`, 500);
     }
 
-    return data || [];
+    if (!data || data.length === 0) {
+        return [];
+    }
+
+    const userIds = [...new Set(data.map((d) => d.user_id).filter(Boolean))];
+    if (userIds.length > 0) {
+        try {
+            const { data: users } = await supabase
+                .from('perfis_usuarios')
+                .select('id, nome, email, role')
+                .in('id', userIds);
+
+            if (users && users.length > 0) {
+                const userMap = new Map(users.map((u) => [u.id, u]));
+                return data.map((item) => ({
+                    ...item,
+                    usuario: userMap.get(item.user_id) || null
+                }));
+            }
+        } catch (_) {}
+    }
+
+    return data;
 };
 
 const assignStationAdmin = async (stationId, userId, currentUser) => {
@@ -320,6 +371,58 @@ const assignStationAdmin = async (stationId, userId, currentUser) => {
     return data[0];
 };
 
+const getPriceAuditHistory = async (filters = {}) => {
+    let query = supabase
+        .from('historico_precos_combustivel')
+        .select(`
+            *,
+            posto:postos (id, nome_fantasia, razao_social, cnpj),
+            combustivel:combustiveis (id, nome, unidade_medida)
+        `);
+
+    if (filters.stationId) {
+        query = query.eq('posto_id', Number(filters.stationId));
+    }
+    if (filters.combustivelId) {
+        query = query.eq('combustivel_id', Number(filters.combustivelId));
+    }
+
+    query = query.order('alterado_em', { ascending: false });
+
+    if (filters.limit) {
+        query = query.limit(Number(filters.limit));
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        throw new AppError(`Erro ao buscar histórico de auditoria de preços: ${error.message}`, 500);
+    }
+
+    if (!data || data.length === 0) {
+        return [];
+    }
+
+    const userIds = [...new Set(data.map((d) => d.alterado_por).filter(Boolean))];
+    if (userIds.length > 0) {
+        try {
+            const { data: users } = await supabase
+                .from('perfis_usuarios')
+                .select('id, nome, email, role')
+                .in('id', userIds);
+
+            if (users && users.length > 0) {
+                const userMap = new Map(users.map((u) => [u.id, u]));
+                return data.map((item) => ({
+                    ...item,
+                    usuario: userMap.get(item.alterado_por) || null
+                }));
+            }
+        } catch (_) {}
+    }
+
+    return data;
+};
+
 module.exports = {
     createStation,
     getStations,
@@ -330,7 +433,9 @@ module.exports = {
     getStationFuels,
     createStationFuel,
     updateStationFuel,
+    deleteStationFuel,
     getStationFuelHistory,
+    getPriceAuditHistory,
     getStationAdmins,
     assignStationAdmin
 };

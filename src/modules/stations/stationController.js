@@ -53,7 +53,7 @@ const updateStation = async (req, res, next) => {
 const getStationFuels = async (req, res, next) => {
     try {
         const { stationId } = req.params;
-        const fuels = await stationService.getStationFuels(Number(stationId));
+        const fuels = await stationService.getStationFuels(Number(stationId), req.user);
         return res.status(200).json(fuels);
     } catch (err) {
         next(err);
@@ -85,12 +85,27 @@ const updateStationFuel = async (req, res, next) => {
     }
 };
 
+const deleteStationFuel = async (req, res, next) => {
+    try {
+        const { stationId, combustivelId } = req.params;
+        const deleted = await stationService.deleteStationFuel(
+            Number(stationId),
+            Number(combustivelId),
+            req.user
+        );
+        return res.status(200).json(deleted);
+    } catch (err) {
+        next(err);
+    }
+};
+
 const getStationFuelHistory = async (req, res, next) => {
     try {
         const { stationId, combustivelId } = req.params;
         const history = await stationService.getStationFuelHistory(
             Number(stationId),
-            Number(combustivelId)
+            Number(combustivelId),
+            req.user
         );
         return res.status(200).json(history);
     } catch (err) {
@@ -119,6 +134,20 @@ const assignStationAdmin = async (req, res, next) => {
     }
 };
 
+const getPriceAuditHistory = async (req, res, next) => {
+    try {
+        const { stationId, combustivelId, limit } = req.query;
+        const history = await stationService.getPriceAuditHistory({
+            stationId,
+            combustivelId,
+            limit
+        });
+        return res.status(200).json(history);
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     createStation,
     getStations,
@@ -128,7 +157,9 @@ module.exports = {
     getStationFuels,
     createStationFuel,
     updateStationFuel,
+    deleteStationFuel,
     getStationFuelHistory,
+    getPriceAuditHistory,
     getStationAdmins,
     assignStationAdmin
 };

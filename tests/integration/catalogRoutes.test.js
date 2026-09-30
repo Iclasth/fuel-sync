@@ -191,4 +191,55 @@ describe('Integration: Catalog Routes (/api/v1/catalog)', () => {
             expect(res.body).toHaveProperty('error', 'Já existe um combustível cadastrado com este nome.');
         });
     });
+
+    describe('DELETE /api/v1/catalog/fuels/:id', () => {
+        it('TC-CAT-API-09: deve rejeitar com 403 se usuário for cliente', async () => {
+            mockAuthUser('cliente');
+
+            const res = await request(app)
+                .delete('/api/v1/catalog/fuels/1')
+                .set('Authorization', 'Bearer valid-customer-token');
+
+            expect(res.status).toBe(403);
+        });
+
+        it('TC-CAT-API-10: deve remover combustível com status 200 quando for admin_geral ou posto_admin', async () => {
+            mockAuthUser('admin_geral');
+
+            const mockDeleted = { id: 1, nome: 'Gasolina Comum', unidade_medida: 'LITROS' };
+            supabase.from.mockReturnValueOnce({
+                delete: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({ data: [mockDeleted], error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .delete('/api/v1/catalog/fuels/1')
+                .set('Authorization', 'Bearer valid-admin-token');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(mockDeleted);
+        });
+
+        it('TC-CAT-API-11: deve retornar 404 se o combustível a ser removido não existir', async () => {
+            mockAuthUser('admin_geral');
+
+            supabase.from.mockReturnValueOnce({
+                delete: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({ data: [], error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .delete('/api/v1/catalog/fuels/999')
+                .set('Authorization', 'Bearer valid-admin-token');
+
+            expect(res.status).toBe(404);
+            expect(res.body).toHaveProperty('error', 'Combustível não encontrado.');
+        });
+    });
 });

@@ -106,8 +106,39 @@ router.get(
 router.post(
     '/fuels',
     authMiddleware,
-    roleMiddleware([UserRoles.POSTO_ADMIN]),
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
     catalogController.createFuel
+);
+
+/**
+ * @openapi
+ * /api/v1/catalog/fuels/{id}:
+ *   delete:
+ *     summary: Remove um tipo de combustível do catálogo global
+ *     tags: [Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Combustível removido do catálogo com sucesso
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado
+ *       404:
+ *         description: Combustível não encontrado
+ */
+router.delete(
+    '/fuels/:id',
+    authMiddleware,
+    roleMiddleware([UserRoles.ADMIN_GERAL, UserRoles.POSTO_ADMIN]),
+    catalogController.deleteFuel
 );
 
 module.exports = router;

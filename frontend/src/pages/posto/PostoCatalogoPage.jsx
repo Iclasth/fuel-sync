@@ -11,6 +11,7 @@ import {
   XCircle,
   Building2,
   TrendingUp,
+  Trash2,
 } from 'lucide-react';
 import AppLayout from '../../components/layout/AppLayout';
 import useAuth from '../../hooks/useAuth';
@@ -40,19 +41,44 @@ export const PostoCatalogoPage = () => {
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [mensagemErro, setMensagemErro] = useState('');
 
+  const [combustivelParaExcluir, setCombustivelParaExcluir] = useState(null);
+  const [isExcluindo, setIsExcluindo] = useState(false);
+  const [postoNaoVinculado, setPostoNaoVinculado] = useState(false);
+
   // Carrega lista de postos e catálogo global
   useEffect(() => {
     const carregarPostosECatalogo = async () => {
       try {
+        const isPostoAdmin = user?.role === 'posto_admin';
         const [postosRes, catRes] = await Promise.allSettled([
-          api.get('/api/v1/stations'),
+          isPostoAdmin ? api.get('/api/v1/stations/me') : api.get('/api/v1/stations'),
           api.get('/api/v1/catalog/fuels'),
         ]);
 
-        if (postosRes.status === 'fulfilled' && Array.isArray(postosRes.value.data)) {
-          setPostos(postosRes.value.data);
-          if (postosRes.value.data.length > 0) {
-            setPostoId(String(postosRes.value.data[0].id));
+        if (postosRes.status === 'fulfilled') {
+          if (isPostoAdmin) {
+            const stationData = postosRes.value.data;
+            if (stationData && stationData.id) {
+              setPostos([stationData]);
+              setPostoId(String(stationData.id));
+              setPostoNaoVinculado(false);
+            } else {
+              setPostos([]);
+              setPostoId('');
+              setPostoNaoVinculado(true);
+            }
+          } else if (Array.isArray(postosRes.value.data)) {
+            setPostos(postosRes.value.data);
+            if (postosRes.value.data.length > 0) {
+              setPostoId(String(postosRes.value.data[0].id));
+            }
+            setPostoNaoVinculado(false);
+          }
+        } else {
+          if (isPostoAdmin) {
+            setPostoNaoVinculado(true);
+            setPostos([]);
+            setPostoId('');
           }
         }
 
@@ -71,7 +97,7 @@ export const PostoCatalogoPage = () => {
     };
 
     carregarPostosECatalogo();
-  }, []);
+  }, [user?.role]);
 
   // Carrega combustíveis do posto selecionado
   const carregarCombustiveisDoPosto = async () => {
@@ -192,6 +218,27 @@ export const PostoCatalogoPage = () => {
     }
   };
 
+  const handleConfirmarExclusao = async () => {
+    if (!combustivelParaExcluir || !postoId) return;
+    setIsExcluindo(true);
+    setMensagemSucesso('');
+    setMensagemErro('');
+
+    const cId = combustivelParaExcluir.combustivel_id || combustivelParaExcluir.id;
+    try {
+      await api.delete(`/api/v1/stations/${postoId}/fuels/${cId}`);
+      setMensagemSucesso('Combustível removido com sucesso do catálogo do posto!');
+      setTimeout(() => setMensagemSucesso(''), 3500);
+      setCombustivelParaExcluir(null);
+      await carregarCombustiveisDoPosto();
+    } catch (err) {
+      console.error('Erro ao remover combustível:', err);
+      setMensagemErro(err.response?.data?.error || 'Erro ao remover combustível do posto.');
+    } finally {
+      setIsExcluindo(false);
+    }
+  };
+
   return (
     <AppLayout>
       <div className="w-full space-y-6">
@@ -206,30 +253,55 @@ export const PostoCatalogoPage = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
-            {postos.length > 1 && (
-              <select
-                value={postoId}
-                onChange={(e) => setPostoId(e.target.value)}
-                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-800 focus:outline-none focus:border-blue-600"
-              >
-                {postos.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nome_fantasia || p.razao_social}
-                  </option>
-                ))}
-              </select>
+          <div className="flex flex-wrap items-center gap-3">
+            {user?.role === 'posto_admin' ? (
+              postos.length > 0 && (
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg text-xs font-medium text-blue-900">
+                  <Building2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>
+                    <strong className="font-semibold">{postos[0].nome_fantasia || postos[0].razao_social}</strong>
+                    {postos[0].cnpj ? ` — CNPJ: ${postos[0].cnpj}` : ''}
+                  </span>
+                </div>
+              )
+            ) : (
+              postos.length > 0 && (
+                <select
+                  value={postoId}
+                  onChange={(e) => setPostoId(e.target.value)}
+                  className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium text-gray-800 focus:outline-none focus:border-blue-600"
+                >
+                  {postos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nome_fantasia || p.razao_social}
+                    </option>
+                  ))}
+                </select>
+              )
             )}
 
             <button
               onClick={() => setModalNovoAberto(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              disabled={postoNaoVinculado}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Adicionar Combustível</span>
             </button>
           </div>
         </div>
+
+        {postoNaoVinculado && (
+          <div
+            className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm"
+            role="alert"
+          >
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <span className="font-medium">
+              Nenhum posto de abastecimento vinculado ao seu perfil. Solicite o vínculo ao Administrador Geral.
+            </span>
+          </div>
+        )}
 
         {mensagemSucesso && (
           <div
@@ -365,6 +437,15 @@ export const PostoCatalogoPage = () => {
                               title="Histórico de Reajustes (Trigger Audit)"
                             >
                               <History className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => setCombustivelParaExcluir(comb)}
+                              className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                              title="Remover combustível do catálogo do posto"
+                              aria-label="Remover combustível"
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>
@@ -538,6 +619,70 @@ export const PostoCatalogoPage = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Confirmação de Remoção de Combustível */}
+        {combustivelParaExcluir && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-600" />
+                  <h3 className="text-base font-bold text-gray-900">
+                    Remover Combustível do Posto
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setCombustivelParaExcluir(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600">
+                Tem certeza que deseja remover o combustível{' '}
+                <strong className="text-gray-900">
+                  {combustivelParaExcluir.combustiveis?.nome ||
+                    `Combustível #${combustivelParaExcluir.combustivel_id || combustivelParaExcluir.id}`}
+                </strong>{' '}
+                do catálogo deste posto?
+              </p>
+
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                A oferta na bomba será suspensa imediatamente. O histórico de auditoria de preços continuará preservado para fins de conformidade.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="button"
+                  disabled={isExcluindo}
+                  onClick={() => setCombustivelParaExcluir(null)}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={isExcluindo}
+                  onClick={handleConfirmarExclusao}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+                >
+                  {isExcluindo ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Removendo...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Confirmar Remoção</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}

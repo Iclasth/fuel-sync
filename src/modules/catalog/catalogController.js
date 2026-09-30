@@ -30,8 +30,19 @@ const createFuel = async (req, res, next) => {
     }
 };
 
+const deleteFuel = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const fuel = await catalogService.deleteFuel(Number(id));
+        return res.status(200).json(fuel);
+    } catch (err) {
+        next(err);
+    }
+};
+
 module.exports = {
     listFuels,
     getFuelById,
-    createFuel
+    createFuel,
+    deleteFuel
 };

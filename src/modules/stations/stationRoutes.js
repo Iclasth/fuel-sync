@@ -104,6 +104,45 @@ router.get(
 
 /**
  * @openapi
+ * /api/v1/stations/audit/price-history:
+ *   get:
+ *     summary: Lista o histórico global de auditoria de alterações de preços
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: stationId
+ *         schema:
+ *           type: integer
+ *         description: Filtrar por identificador de posto
+ *       - in: query
+ *         name: combustivelId
+ *         schema:
+ *           type: integer
+ *         description: Filtrar por identificador de combustível
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Limite de registros retornados
+ *     responses:
+ *       200:
+ *         description: Histórico de alterações de preço recuperado com sucesso
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado (apenas admin_geral e posto_admin)
+ */
+router.get(
+    '/audit/price-history',
+    authMiddleware,
+    roleMiddleware([UserRoles.ADMIN_GERAL, UserRoles.POSTO_ADMIN]),
+    stationController.getPriceAuditHistory
+);
+
+/**
+ * @openapi
  * /api/v1/stations/{id}:
  *   get:
  *     summary: Obtém detalhes de um posto pelo ID
@@ -240,6 +279,42 @@ router.put(
     authMiddleware,
     roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
     stationController.updateStationFuel
+);
+
+/**
+ * @openapi
+ * /api/v1/stations/{stationId}/fuels/{combustivelId}:
+ *   delete:
+ *     summary: Remove um combustível do catálogo de oferta do posto
+ *     tags: [Stations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: stationId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: combustivelId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Combustível removido do catálogo do posto com sucesso
+ *       401:
+ *         description: Não autenticado
+ *       403:
+ *         description: Não autorizado a gerenciar este posto
+ *       404:
+ *         description: Combustível não encontrado no catálogo deste posto
+ */
+router.delete(
+    '/:stationId/fuels/:combustivelId',
+    authMiddleware,
+    roleMiddleware([UserRoles.POSTO_ADMIN, UserRoles.ADMIN_GERAL]),
+    stationController.deleteStationFuel
 );
 
 /**

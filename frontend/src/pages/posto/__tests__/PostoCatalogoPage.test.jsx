@@ -11,6 +11,7 @@ vi.mock('../../../services/api', () => ({
     get: vi.fn(),
     put: vi.fn(),
     post: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
@@ -26,9 +27,17 @@ describe('PostoCatalogoPage', () => {
     vi.clearAllMocks();
 
     api.get.mockImplementation((url) => {
+      if (url === '/api/v1/stations/me') {
+        return Promise.resolve({
+          data: { id: 1, nome_fantasia: 'Auto Posto Imperial', cnpj: '12.345.678/0001-99' },
+        });
+      }
       if (url === '/api/v1/stations') {
         return Promise.resolve({
-          data: [{ id: 1, nome_fantasia: 'Auto Posto Imperial' }],
+          data: [
+            { id: 1, nome_fantasia: 'Auto Posto Imperial', cnpj: '12.345.678/0001-99' },
+            { id: 2, nome_fantasia: 'Posto Marina Seca', cnpj: '98.765.432/0001-11' },
+          ],
         });
       }
       if (url === '/api/v1/catalog' || url === '/api/v1/catalog/fuels') {
@@ -61,12 +70,12 @@ describe('PostoCatalogoPage', () => {
     });
   });
 
-  const renderComponent = () => {
+  const renderComponent = (user = mockUser) => {
     return render(
       <MemoryRouter>
         <AuthContext.Provider
           value={{
-            user: mockUser,
+            user,
             isAuthenticated: true,
             isLoading: false,
             logout: vi.fn(),
@@ -85,6 +94,28 @@ describe('PostoCatalogoPage', () => {
       expect(screen.getByText('Gasolina Comum')).toBeInTheDocument();
       expect(screen.getByDisplayValue('5.89')).toBeInTheDocument();
       expect(screen.getByDisplayValue('4500')).toBeInTheDocument();
+    });
+  });
+
+  it('exibe badge fixo do posto para posto_admin e não exibe dropdown de troca de postos', async () => {
+    renderComponent(mockUser);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Auto Posto Imperial/i)).toBeInTheDocument();
+      expect(screen.getByText(/12.345.678\/0001-99/i)).toBeInTheDocument();
+    });
+
+    // Como é posto_admin, o seletor dropdown não deve existir
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+  });
+
+  it('exibe dropdown de seleção de postos quando o usuário for admin_geral', async () => {
+    const adminUser = { ...mockUser, role: 'admin_geral' };
+    renderComponent(adminUser);
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox')).toBeInTheDocument();
+      expect(screen.getByText('Posto Marina Seca')).toBeInTheDocument();
     });
   });
 
@@ -126,6 +157,31 @@ describe('PostoCatalogoPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/Histórico de Auditoria de Preço/i)).toBeInTheDocument();
       expect(screen.getByText(/trg_audit_preco_combustivel/i)).toBeInTheDocument();
+    });
+  });
+
+  it('abre modal de confirmação e remove combustível com DELETE ao confirmar', async () => {
+    api.delete.mockResolvedValueOnce({ data: { success: true } });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Gasolina Comum')).toBeInTheDocument();
+    });
+
+    const removeBtn = screen.getByRole('button', { name: /Remover combustível/i });
+    fireEvent.click(removeBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Remover Combustível do Posto/i)).toBeInTheDocument();
+      expect(screen.getByText(/A oferta na bomba será suspensa imediatamente/i)).toBeInTheDocument();
+    });
+
+    const confirmBtn = screen.getByRole('button', { name: /Confirmar Remoção/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(api.delete).toHaveBeenCalledWith('/api/v1/stations/1/fuels/1');
     });
   });
 });
