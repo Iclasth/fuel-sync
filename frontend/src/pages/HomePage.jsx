@@ -17,6 +17,9 @@ import {
   Truck,
   AlertCircle,
   ExternalLink,
+  Shield,
+  DollarSign,
+  Users,
 } from 'lucide-react';
 import useAuth from '../hooks/useAuth';
 import api from '../services/api';
@@ -26,6 +29,14 @@ export const HomePage = () => {
   const { user } = useAuth();
   const [latestOrder, setLatestOrder] = useState(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
+
+  // Estados para Administrador Geral
+  const [adminStats, setAdminStats] = useState({
+    totalPostos: 0,
+    postosAtivos: 0,
+    totalAuditorias: 0,
+  });
+  const [isLoadingAdmin, setIsLoadingAdmin] = useState(false);
 
   // Estados para Administrador de Posto
   const [myStation, setMyStation] = useState(null);
@@ -82,7 +93,7 @@ export const HomePage = () => {
     }
 
     // Busca dados do posto caso o usuário seja posto_admin
-    if (user?.role === 'posto_admin' || user?.role === 'admin_geral') {
+    if (user?.role === 'posto_admin') {
       setIsLoadingStation(true);
       api
         .get('/api/v1/stations/me')
@@ -104,6 +115,29 @@ export const HomePage = () => {
         })
         .finally(() => {
           if (isMounted) setIsLoadingStation(false);
+        });
+    }
+
+    // Busca dados globais da rede para o Administrador Geral
+    if (user?.role === 'admin_geral') {
+      setIsLoadingAdmin(true);
+      Promise.all([
+        api.get('/api/v1/stations').catch(() => ({ data: [] })),
+        api.get('/api/v1/stations/audit/price-history').catch(() => ({ data: [] })),
+      ])
+        .then(([postosRes, auditRes]) => {
+          if (isMounted) {
+            const listPostos = Array.isArray(postosRes?.data) ? postosRes.data : [];
+            const listAudit = Array.isArray(auditRes?.data) ? auditRes.data : [];
+            setAdminStats({
+              totalPostos: listPostos.length,
+              postosAtivos: listPostos.filter((p) => p.ativo).length,
+              totalAuditorias: listAudit.length,
+            });
+          }
+        })
+        .finally(() => {
+          if (isMounted) setIsLoadingAdmin(false);
         });
     }
 
@@ -166,7 +200,7 @@ export const HomePage = () => {
         return { label: 'Entregador Homologado', color: 'bg-amber-50 text-amber-700 border-amber-200' };
       case 'cliente':
       default:
-        return { label: 'Cliente B2C', color: 'bg-blue-50 text-blue-700 border-blue-200' };
+        return { label: 'Cliente', color: 'bg-blue-50 text-blue-700 border-blue-200' };
     }
   };
 
@@ -207,7 +241,7 @@ export const HomePage = () => {
                 </Link>
               </div>
             )}
-            {(user?.role === 'posto_admin' || user?.role === 'admin_geral') && myStation && (
+            {user?.role === 'posto_admin' && myStation && (
               <div className="shrink-0">
                 <Link
                   to="/posto/dados"
@@ -215,6 +249,24 @@ export const HomePage = () => {
                 >
                   <Edit2 className="w-4 h-4" />
                   <span>Editar Dados do Posto</span>
+                </Link>
+              </div>
+            )}
+            {user?.role === 'admin_geral' && (
+              <div className="shrink-0 flex items-center gap-2">
+                <Link
+                  to="/admin/postos"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+                >
+                  <Building2 className="w-4 h-4" />
+                  <span>Gerenciar Postos</span>
+                </Link>
+                <Link
+                  to="/admin/auditoria"
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-sm font-semibold rounded-lg shadow-sm transition-colors"
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>Auditoria de Preços</span>
                 </Link>
               </div>
             )}
@@ -242,7 +294,7 @@ export const HomePage = () => {
         )}
 
         {/* Visão Expandida do Posto para posto_admin */}
-        {(user?.role === 'posto_admin' || user?.role === 'admin_geral') && (
+        {user?.role === 'posto_admin' && (
           <div className="space-y-6">
             {isLoadingStation && (
               <div className="bg-white border border-gray-200 rounded-lg p-8 text-center shadow-sm">
@@ -430,6 +482,332 @@ export const HomePage = () => {
                 </div>
               </>
             )}
+          </div>
+        )}
+
+        {/* Painel Central de Governança e Operações para admin_geral */}
+        {user?.role === 'admin_geral' && (
+          <div className="space-y-6">
+            {/* KPIs Globais da Rede */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-white border border-blue-200 rounded-lg p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-blue-800 uppercase tracking-wider">
+                    Postos Cadastrados
+                  </span>
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-700">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono text-gray-900">
+                    {adminStats.totalPostos}
+                  </span>
+                  <span className="text-xs text-gray-500">unidades homologadas</span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-emerald-200 rounded-lg p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                    Postos em Operação
+                  </span>
+                  <div className="p-2 rounded-lg bg-emerald-100 text-emerald-700">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono text-gray-900">
+                    {adminStats.postosAtivos}
+                  </span>
+                  <span className="text-xs text-emerald-600 font-semibold">ativos na rede</span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-indigo-200 rounded-lg p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-indigo-800 uppercase tracking-wider">
+                    Auditoria de Preços
+                  </span>
+                  <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700">
+                    <Shield className="w-4 h-4" />
+                  </div>
+                </div>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-bold font-mono text-gray-900">
+                    {adminStats.totalAuditorias}
+                  </span>
+                  <span className="text-xs text-gray-500">alterações registradas</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Painel de Controle de TODAS as opções da aplicação */}
+            <div className="space-y-4">
+              <div className="border-b border-gray-200 pb-2">
+                <h2 className="text-base font-bold text-gray-900">
+                  Centro de Controle do Administrador Geral
+                </h2>
+                <p className="text-xs text-gray-500">
+                  Acesso rápido a todos os módulos operacionais, administrativos e de cliente da plataforma NAVROTAS
+                </p>
+              </div>
+
+              {/* Seção 1: Rede & Governança */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Rede & Governança
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:border-blue-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-9 h-9 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-sm font-bold text-gray-900">Postos Cadastrados</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Cadastre novos postos de combustível, configure coordenadas geográficas e tempo de preparo.
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <Link
+                        to="/admin/postos"
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                      >
+                        <span>Gerenciar postos</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:border-indigo-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-9 h-9 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3">
+                        <Layers className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-sm font-bold text-gray-900">Vínculos de Gestores</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Associe perfis de administrador de posto às bases físicas cadastradas no sistema.
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <Link
+                        to="/admin/vinculos"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1"
+                      >
+                        <span>Gerenciar vínculos</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:border-emerald-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3">
+                        <Users className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-sm font-bold text-gray-900">Gestão de Usuários</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Controle perfis de acesso, promova gestores de postos e gerencie papéis RBAC de todos os usuários.
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <Link
+                        to="/admin/usuarios"
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1"
+                      >
+                        <span>Gerenciar usuários</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:border-purple-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-9 h-9 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center mb-3">
+                        <Shield className="w-5 h-5" />
+                      </div>
+                      <h3 className="text-sm font-bold text-gray-900">Auditoria de Preços</h3>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Fiscalize o histórico atômico de alterações de preços de combustíveis de todas as bases.
+                      </p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-100">
+                      <Link
+                        to="/admin/auditoria"
+                        className="text-xs font-semibold text-purple-600 hover:text-purple-700 inline-flex items-center gap-1"
+                      >
+                        <span>Acessar auditoria</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 2: Operações de Posto */}
+              <div className="space-y-2 pt-2">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Operações da Base & Frotas
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-emerald-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5">
+                        <Layers className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Fila de Pedidos</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Supervisione a esteira operacional de pedidos e despachos.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/posto/pedidos"
+                        className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 inline-flex items-center gap-1"
+                      >
+                        <span>Ver fila</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-amber-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mb-2.5">
+                        <DollarSign className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Tabela de Preços</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Consulte estoques e tabelas de preços praticados nas bases.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/posto/precos"
+                        className="text-xs font-semibold text-amber-600 hover:text-amber-700 inline-flex items-center gap-1"
+                      >
+                        <span>Ver catálogo</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-indigo-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2.5">
+                        <Truck className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Entregadores</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Monitore a escala e status de operadores náuticos e terrestres.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/posto/entregadores"
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 inline-flex items-center gap-1"
+                      >
+                        <span>Ver entregadores</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-blue-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-2.5">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Dados do Posto</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Acesse as configurações e telemetria da base de operação.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/posto/dados"
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                      >
+                        <span>Ver dados</span>
+                        <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seção 3: Operações do Cliente */}
+              <div className="space-y-2 pt-2">
+                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">
+                  Experiência do Cliente & Rastreamento
+                </span>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-blue-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-2.5">
+                        <Fuel className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Novo Abastecimento</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Simule ou realize pedidos de abastecimento na interface do cliente.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/comprar"
+                        className="text-xs font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                      >
+                        <span>Acessar compra</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-rose-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center mb-2.5">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Endereços de Entrega</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Gerencie piers, marinas e pontos geográficos cadastrados.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/enderecos"
+                        className="text-xs font-semibold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1"
+                      >
+                        <span>Ver endereços</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-sky-300 transition-colors flex flex-col justify-between">
+                    <div>
+                      <div className="w-8 h-8 rounded-lg bg-sky-50 text-sky-600 flex items-center justify-center mb-2.5">
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <h4 className="text-xs font-bold text-gray-900">Meus Pedidos & Rastreamento</h4>
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Acompanhe telemetria, rotas e estimativas contextuais de entrega.
+                      </p>
+                    </div>
+                    <div className="mt-3 pt-2.5 border-t border-gray-100">
+                      <Link
+                        to="/rastreio"
+                        className="text-xs font-semibold text-sky-600 hover:text-sky-700 inline-flex items-center gap-1"
+                      >
+                        <span>Acessar rastreamento</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

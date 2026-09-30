@@ -13,6 +13,7 @@ import {
   DollarSign,
   Truck,
   Layers,
+  Users,
 } from 'lucide-react';
 import useAuth from '../../hooks/useAuth';
 
@@ -57,11 +58,27 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
     { to: '/posto/entregadores', label: 'Entregadores', icon: Truck },
   ];
 
-  // General admin navigation items
+  // General admin navigation items (abrange TODAS as opções da aplicação)
   const generalAdminNav = [
-    { to: '/', label: 'Visão Geral', icon: Home },
-    { to: '/admin/postos', label: 'Postos & Gestores', icon: Building2 },
+    { section: 'Visão Geral' },
+    { to: '/', label: 'Painel Geral', icon: Home },
+
+    { section: 'Rede & Governança' },
+    { to: '/admin/postos', label: 'Postos Cadastrados', icon: Building2 },
+    { to: '/admin/vinculos', label: 'Vínculos de Gestores', icon: Layers },
+    { to: '/admin/usuarios', label: 'Gestão de Usuários', icon: Users },
     { to: '/admin/auditoria', label: 'Auditoria de Preços', icon: Shield },
+
+    { section: 'Operações de Posto' },
+    { to: '/posto/pedidos', label: 'Fila de Pedidos', icon: Layers },
+    { to: '/posto/precos', label: 'Tabela de Preços', icon: DollarSign },
+    { to: '/posto/entregadores', label: 'Entregadores', icon: Truck },
+    { to: '/posto/dados', label: 'Dados do Posto', icon: Building2 },
+
+    { section: 'Operações do Cliente' },
+    { to: '/comprar', label: 'Abastecimento', icon: Fuel },
+    { to: '/enderecos', label: 'Endereços', icon: MapPin },
+    { to: '/rastreio', label: 'Meus Pedidos', icon: Clock },
   ];
 
   // Courier navigation items
@@ -94,7 +111,18 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
 
         {/* Navigation Links */}
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
+            if (item.section) {
+              return (
+                <div
+                  key={`section-${index}`}
+                  className="pt-4 pb-1 px-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none"
+                >
+                  {item.section}
+                </div>
+              );
+            }
+
             const Icon = item.icon;
             return (
               <NavLink
@@ -178,8 +206,19 @@ export const AppLayout = ({ children, activePageTitle = '' }) => {
                 </button>
               </div>
 
-              <nav className="flex-1 space-y-1">
-                {navItems.map((item) => {
+              <nav className="flex-1 space-y-1 overflow-y-auto pr-1">
+                {navItems.map((item, index) => {
+                  if (item.section) {
+                    return (
+                      <div
+                        key={`m-section-${index}`}
+                        className="pt-3 pb-1 px-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider select-none"
+                      >
+                        {item.section}
+                      </div>
+                    );
+                  }
+
                   const Icon = item.icon;
                   return (
                     <NavLink

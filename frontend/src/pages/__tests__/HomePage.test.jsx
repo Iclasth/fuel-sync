@@ -158,4 +158,45 @@ describe('HomePage - Painel Operacional', () => {
       expect(screen.getByText(/Entrega do Pedido #101 concluída com sucesso!/i)).toBeInTheDocument();
     });
   });
+
+  it('exibe painel central de governança e atalhos rápidos para admin_geral sem erro de posto vinculado', async () => {
+    const generalAdminUser = {
+      id: 'usr-admin-1',
+      name: 'Super Administrador',
+      email: 'admin@navrotas.com',
+      role: 'admin_geral',
+    };
+
+    api.get.mockImplementation((url) => {
+      if (url === '/api/v1/stations') {
+        return Promise.resolve({
+          data: [
+            { id: 1, nome_fantasia: 'Posto Alpha', ativo: true },
+            { id: 2, nome_fantasia: 'Posto Beta', ativo: false },
+          ],
+        });
+      }
+      if (url === '/api/v1/stations/audit/price-history') {
+        return Promise.resolve({
+          data: [{ id: 'audit-1' }, { id: 'audit-2' }, { id: 'audit-3' }],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderWithUser(generalAdminUser);
+
+    await waitFor(() => {
+      expect(screen.getByText('Centro de Controle do Administrador Geral')).toBeInTheDocument();
+      expect(screen.getAllByText('Postos Cadastrados').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Vínculos de Gestores').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Gestão de Usuários').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Auditoria de Preços').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Novo Abastecimento').length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Não deve exibir o aviso enganoso de posto pendente
+    expect(screen.queryByText('Vínculo de Posto Pendente')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum posto de abastecimento vinculado ao seu perfil/)).not.toBeInTheDocument();
+  });
 });

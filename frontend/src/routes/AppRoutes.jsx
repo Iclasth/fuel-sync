@@ -24,6 +24,8 @@ import PostoDadosPage from '../pages/posto/PostoDadosPage';
 // Módulos de Administração Geral (admin_geral)
 import AdminPostosPage from '../pages/admin/AdminPostosPage';
 import AdminVinculosPage from '../pages/admin/AdminVinculosPage';
+import AdminAuditoriaPage from '../pages/admin/AdminAuditoriaPage';
+import AdminUsuariosPage from '../pages/admin/AdminUsuariosPage';
 
 export const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -171,6 +173,24 @@ export const AppRoutes = () => {
         element={
           <RoleRoute allowedRoles={['admin_geral']}>
             <AdminVinculosPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/admin/auditoria"
+        element={
+          <RoleRoute allowedRoles={['admin_geral']}>
+            <AdminAuditoriaPage />
+          </RoleRoute>
+        }
+      />
+
+      <Route
+        path="/admin/usuarios"
+        element={
+          <RoleRoute allowedRoles={['admin_geral']}>
+            <AdminUsuariosPage />
           </RoleRoute>
         }
       />

@@ -86,4 +86,37 @@ describe('AppLayout Sidebar Navigation', () => {
     expect(screen.queryByText('Abastecimento')).not.toBeInTheDocument();
     expect(screen.queryByText('Minhas Entregas')).not.toBeInTheDocument();
   });
+
+  it('exibe TODAS as opções da aplicação e seções de governança para admin_geral', () => {
+    const generalAdminUser = {
+      id: 'usr-super-1',
+      name: 'Super Administrador',
+      email: 'admin@navrotas.com',
+      role: 'admin_geral',
+    };
+
+    renderWithUser(generalAdminUser);
+
+    // Seções
+    expect(screen.getByText('Rede & Governança')).toBeInTheDocument();
+    expect(screen.getByText('Operações de Posto')).toBeInTheDocument();
+    expect(screen.getByText('Operações do Cliente')).toBeInTheDocument();
+
+    // Rede & Governança
+    expect(screen.getByText('Postos Cadastrados')).toBeInTheDocument();
+    expect(screen.getByText('Vínculos de Gestores')).toBeInTheDocument();
+    expect(screen.getByText('Gestão de Usuários')).toBeInTheDocument();
+    expect(screen.getByText('Auditoria de Preços')).toBeInTheDocument();
+
+    // Operações de Posto
+    expect(screen.getByText('Fila de Pedidos')).toBeInTheDocument();
+    expect(screen.getByText('Tabela de Preços')).toBeInTheDocument();
+    expect(screen.getByText('Entregadores')).toBeInTheDocument();
+    expect(screen.getByText('Dados do Posto')).toBeInTheDocument();
+
+    // Operações do Cliente
+    expect(screen.getByText('Abastecimento')).toBeInTheDocument();
+    expect(screen.getByText('Endereços')).toBeInTheDocument();
+    expect(screen.getByText('Meus Pedidos')).toBeInTheDocument();
+  });
 });
