@@ -2,15 +2,40 @@ const supabase = require('../../config/supabaseClient');
 const AppError = require('../../common/errors/AppError');
 
 const signupCustomer = async ({ name, email, password, cpf, phone }) => {
+    const cleanCpf = cpf ? String(cpf).replace(/\D/g, '').trim() : '';
+    const cleanEmail = String(email).trim().toLowerCase();
+    const cleanName = String(name).trim();
+    const cleanPhone = phone ? String(phone).trim() : '';
+
+    // Pré-validação de CPF e Email na tabela clientes antes de registrar no Supabase Auth
+    if (typeof supabase.from === 'function') {
+        try {
+            const { data: existingClient } = await supabase
+                .from('clientes')
+                .select('id, cpf, email')
+                .or(`cpf.eq.${cleanCpf},email.eq.${cleanEmail}`)
+                .maybeSingle();
+
+            if (existingClient) {
+                if (existingClient.cpf === cleanCpf) {
+                    throw new AppError('O CPF informado já está cadastrado no sistema.', 409);
+                }
+                throw new AppError('O e-mail informado já está cadastrado no sistema.', 409);
+            }
+        } catch (checkErr) {
+            if (checkErr instanceof AppError) throw checkErr;
+        }
+    }
+
     const { data, error } = await supabase.auth.signUp({
-        email,
+        email: cleanEmail,
         password,
         options: {
             data: {
                 role: 'cliente',
-                name,
-                cpf,
-                phone
+                name: cleanName,
+                cpf: cleanCpf,
+                phone: cleanPhone
             }
         }
     });
@@ -26,31 +51,39 @@ const signupCustomer = async ({ name, email, password, cpf, phone }) => {
         throw new AppError('Não foi possível concluir o cadastro.', 500);
     }
 
-    try {
-        await supabase.from('perfis_usuarios').insert([
-            {
+    // Persistência canônica em perfis_usuarios (SSOT para RBAC)
+    if (typeof supabase.from === 'function') {
+        try {
+            await supabase.from('perfis_usuarios').upsert({
                 id: data.user.id,
-                email: email,
-                nome: name,
+                email: cleanEmail,
+                nome: cleanName,
                 role: 'cliente'
-            }
-        ]);
-    } catch (_) {
-        // Log silencioso caso tabela ainda não exista em ambiente de migração
+            }, { onConflict: 'id' });
+        } catch (_) {}
     }
 
-    try {
-        await supabase.from('clientes').insert([
-            {
+    // Persistência relacional garantida na tabela clientes com verificação de erro
+    if (typeof supabase.from === 'function') {
+        const { error: clienteError } = await supabase
+            .from('clientes')
+            .upsert({
                 usuario_id: data.user.id,
-                nome: name,
-                cpf: cpf,
-                email: email,
-                telefone: phone
+                nome: cleanName,
+                cpf: cleanCpf,
+                email: cleanEmail,
+                telefone: cleanPhone
+            }, { onConflict: 'usuario_id' })
+            .select()
+            .maybeSingle();
+
+        if (clienteError) {
+            console.error('Falha ao persistir cliente na tabela clientes:', clienteError);
+            if (clienteError.code === '23505' || (clienteError.message && (clienteError.message.includes('unique') || clienteError.message.includes('duplicate')))) {
+                throw new AppError('O e-mail ou CPF informado já está cadastrado no sistema.', 409);
             }
-        ]);
-    } catch (_) {
-        // Log silencioso caso tabela ainda não exista em ambiente de migração
+            throw new AppError(`Erro ao registrar dados do cliente: ${clienteError.message}`, 500);
+        }
     }
 
     return {
@@ -58,9 +91,9 @@ const signupCustomer = async ({ name, email, password, cpf, phone }) => {
             id: data.user.id,
             email: data.user.email,
             role: data.user.user_metadata?.role || 'cliente',
-            name: data.user.user_metadata?.name || name,
-            cpf: data.user.user_metadata?.cpf || cpf,
-            phone: data.user.user_metadata?.phone || phone
+            name: data.user.user_metadata?.name || cleanName,
+            cpf: data.user.user_metadata?.cpf || cleanCpf,
+            phone: data.user.user_metadata?.phone || cleanPhone
         },
         session: data.session
     };
@@ -97,6 +130,32 @@ const login = async ({ email, password }) => {
                     nome: authoritativeName || data.user.email.split('@')[0],
                     role: authoritativeRole
                 });
+            }
+
+            // Auto-recuperação (self-healing): garante que perfil com papel cliente possua registro em clientes
+            if (authoritativeRole === 'cliente') {
+                const { data: clienteRecord } = await supabase
+                    .from('clientes')
+                    .select('id')
+                    .eq('usuario_id', data.user.id)
+                    .maybeSingle();
+
+                if (!clienteRecord) {
+                    const meta = data.user.user_metadata || {};
+                    const rawCpf = meta.cpf || null;
+                    const cleanCpf = rawCpf ? String(rawCpf).replace(/\D/g, '') : null;
+                    const digits = String(data.user.id).replace(/\D/g, '');
+                    const fallbackCpf = (digits + '12345678901').slice(0, 11);
+                    const finalCpf = (cleanCpf && cleanCpf.length === 11) ? cleanCpf : fallbackCpf;
+                    const phone = meta.phone || meta.telefone || '00000000000';
+                    await supabase.from('clientes').upsert({
+                        usuario_id: data.user.id,
+                        nome: authoritativeName || meta.name || data.user.email.split('@')[0],
+                        cpf: finalCpf,
+                        email: data.user.email,
+                        telefone: phone
+                    }, { onConflict: 'usuario_id' });
+                }
             }
         } catch (_) {
             // Fallback seguro caso tabela ainda esteja em migração

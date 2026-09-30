@@ -2,6 +2,22 @@ const request = require('supertest');
 const app = require('../../src/app');
 const supabase = require('../../src/config/supabaseClient');
 
+const createQueryBuilder = () => {
+    const qb = {};
+    qb.insert = jest.fn().mockReturnValue(qb);
+    qb.select = jest.fn().mockReturnValue(qb);
+    qb.update = jest.fn().mockReturnValue(qb);
+    qb.delete = jest.fn().mockReturnValue(qb);
+    qb.upsert = jest.fn().mockReturnValue(qb);
+    qb.eq = jest.fn().mockReturnValue(qb);
+    qb.or = jest.fn().mockReturnValue(qb);
+    qb.order = jest.fn().mockReturnValue(qb);
+    qb.limit = jest.fn().mockReturnValue(qb);
+    qb.single = jest.fn().mockResolvedValue({ data: null, error: null });
+    qb.maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+    return qb;
+};
+
 jest.mock('../../src/config/supabaseClient', () => {
     return {
         auth: {
@@ -13,18 +29,14 @@ jest.mock('../../src/config/supabaseClient', () => {
                 createUser: jest.fn()
             }
         },
-        from: jest.fn().mockReturnValue({
-            insert: jest.fn().mockReturnThis(),
-            select: jest.fn().mockReturnThis(),
-            eq: jest.fn().mockReturnThis(),
-            single: jest.fn().mockResolvedValue({ data: null, error: null })
-        })
+        from: jest.fn(() => createQueryBuilder())
     };
 });
 
 describe('Integration: Auth Routes (/api/v1/auth)', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        supabase.from.mockImplementation(() => createQueryBuilder());
     });
 
     describe('POST /api/v1/auth/signup/customer', () => {
@@ -66,6 +78,150 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
             expect(res.body.user.role).toBe('cliente');
             expect(res.body.user.email).toBe('carlos@cliente.com');
             expect(res.body).toHaveProperty('message', 'Cliente cadastrado com sucesso.');
+        });
+
+        it('TC-API-01-A: deve persistir registro na tabela clientes e perfis_usuarios ao registrar cliente civil', async () => {
+            const upsertSpy = jest.fn().mockReturnValue({
+                select: jest.fn().mockReturnValue({
+                    maybeSingle: jest.fn().mockResolvedValue({ data: { id: 99 }, error: null })
+                })
+            });
+
+            supabase.from.mockImplementation((table) => {
+                const qb = createQueryBuilder();
+                if (table === 'perfis_usuarios') {
+                    qb.upsert = upsertSpy;
+                }
+                if (table === 'clientes') {
+                    qb.maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+                    qb.upsert = upsertSpy;
+                }
+                return qb;
+            });
+
+            supabase.auth.signUp.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'usr-carlos-123',
+                        email: 'carlos@cliente.com',
+                        user_metadata: {
+                            role: 'cliente',
+                            name: 'Carlos Cliente',
+                            cpf: '52998224725',
+                            phone: '21999991111'
+                        }
+                    },
+                    session: {
+                        access_token: 'fake-access-token',
+                        refresh_token: 'fake-refresh-token'
+                    }
+                },
+                error: null
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/signup/customer')
+                .send(validPayload);
+
+            expect(res.status).toBe(201);
+            expect(supabase.from).toHaveBeenCalledWith('perfis_usuarios');
+            expect(supabase.from).toHaveBeenCalledWith('clientes');
+            expect(upsertSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    usuario_id: 'usr-carlos-123',
+                    cpf: '52998224725',
+                    email: 'carlos@cliente.com',
+                    telefone: '21999991111'
+                }),
+                { onConflict: 'usuario_id' }
+            );
+        });
+
+        it('TC-API-01-B: deve rejeitar com 409 quando o CPF já estiver cadastrado na tabela clientes (pré-validação)', async () => {
+            supabase.from.mockImplementation((table) => {
+                const qb = createQueryBuilder();
+                if (table === 'clientes') {
+                    qb.maybeSingle = jest.fn().mockResolvedValue({
+                        data: { id: 1, cpf: '52998224725', email: 'outro@cliente.com' },
+                        error: null
+                    });
+                }
+                return qb;
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/signup/customer')
+                .send(validPayload);
+
+            expect(res.status).toBe(409);
+            expect(res.body).toHaveProperty('error', 'O CPF informado já está cadastrado no sistema.');
+            expect(supabase.auth.signUp).not.toHaveBeenCalled();
+        });
+
+        it('TC-API-01-C: deve rejeitar com 409 quando o email já estiver cadastrado na tabela clientes (pré-validação)', async () => {
+            supabase.from.mockImplementation((table) => {
+                const qb = createQueryBuilder();
+                if (table === 'clientes') {
+                    qb.maybeSingle = jest.fn().mockResolvedValue({
+                        data: { id: 2, cpf: '11144477735', email: 'carlos@cliente.com' },
+                        error: null
+                    });
+                }
+                return qb;
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/signup/customer')
+                .send(validPayload);
+
+            expect(res.status).toBe(409);
+            expect(res.body).toHaveProperty('error', 'O e-mail informado já está cadastrado no sistema.');
+            expect(supabase.auth.signUp).not.toHaveBeenCalled();
+        });
+
+        it('TC-API-01-D: deve retornar 409 se a persistência em clientes falhar por violação de unicidade', async () => {
+            supabase.auth.signUp.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'usr-carlos-123',
+                        email: 'carlos@cliente.com',
+                        user_metadata: {
+                            role: 'cliente',
+                            name: 'Carlos Cliente',
+                            cpf: '52998224725',
+                            phone: '21999991111'
+                        }
+                    },
+                    session: {
+                        access_token: 'fake-access-token',
+                        refresh_token: 'fake-refresh-token'
+                    }
+                },
+                error: null
+            });
+
+            supabase.from.mockImplementation((table) => {
+                const qb = createQueryBuilder();
+                if (table === 'clientes') {
+                    qb.maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+                    qb.upsert = jest.fn().mockReturnValue({
+                        select: jest.fn().mockReturnValue({
+                            maybeSingle: jest.fn().mockResolvedValue({
+                                data: null,
+                                error: { code: '23505', message: 'duplicate key value violates unique constraint' }
+                            })
+                        })
+                    });
+                }
+                return qb;
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/signup/customer')
+                .send(validPayload);
+
+            expect(res.status).toBe(409);
+            expect(res.body.error).toMatch(/já está cadastrado/i);
         });
 
         it('TC-API-02: deve retornar 409 quando o usuário/email já existir no Supabase', async () => {
@@ -171,6 +327,61 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
             expect(res.status).toBe(200);
             expect(res.body.user.role).toBe('posto_admin');
             expect(res.body.user.name).toBe('Admin Posto Promovido');
+        });
+
+        it('TC-API-04-B: deve realizar auto-recuperação (self-healing) e provisionar na tabela clientes se cliente logar sem registro prévio', async () => {
+            supabase.auth.signInWithPassword.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'usr-cliente-sem-tabela',
+                        email: 'semtabela@cliente.com',
+                        user_metadata: {
+                            role: 'cliente',
+                            name: 'Cliente Sem Tabela',
+                            cpf: '52998224725',
+                            phone: '21988887777'
+                        }
+                    },
+                    session: {
+                        access_token: 'jwt-access-token',
+                        refresh_token: 'jwt-refresh-token'
+                    }
+                },
+                error: null
+            });
+
+            const upsertSpy = jest.fn().mockReturnThis();
+            supabase.from.mockImplementation((table) => {
+                const qb = createQueryBuilder();
+                if (table === 'perfis_usuarios') {
+                    qb.maybeSingle = jest.fn().mockResolvedValue({
+                        data: { role: 'cliente', nome: 'Cliente Sem Tabela' },
+                        error: null
+                    });
+                }
+                if (table === 'clientes') {
+                    qb.maybeSingle = jest.fn().mockResolvedValue({ data: null, error: null });
+                    qb.upsert = upsertSpy;
+                }
+                return qb;
+            });
+
+            const res = await request(app)
+                .post('/api/v1/auth/login')
+                .send({
+                    email: 'semtabela@cliente.com',
+                    password: 'password123'
+                });
+
+            expect(res.status).toBe(200);
+            expect(upsertSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    usuario_id: 'usr-cliente-sem-tabela',
+                    cpf: '52998224725',
+                    email: 'semtabela@cliente.com'
+                }),
+                { onConflict: 'usuario_id' }
+            );
         });
 
         it('TC-API-05: deve retornar 401 quando as credenciais forem inválidas', async () => {

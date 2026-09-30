@@ -203,7 +203,7 @@ export const RegisterPage = () => {
                 htmlFor="email"
                 className="block text-xs font-semibold text-gray-700 uppercase tracking-wider"
               >
-                E-mail corporativo
+                E-mail
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">

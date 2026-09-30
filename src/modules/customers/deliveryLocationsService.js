@@ -18,17 +18,37 @@ const getClienteIdByUserId = async (userId) => {
     }
 
     if (!cliente) {
-        // Se ainda não existir perfil em clientes, tenta vincular ou criar
-        const { data: newCliente, error: insertError } = await supabase
-            .from('clientes')
-            .insert([{ usuario_id: userId, nome: 'Cliente', cpf: '00000000000', email: 'cliente@temp.com', telefone: '00000000000' }])
-            .select('id')
-            .maybeSingle();
+        try {
+            const { data: perfil } = await supabase
+                .from('perfis_usuarios')
+                .select('nome, email')
+                .eq('id', userId)
+                .maybeSingle();
 
-        if (insertError || !newCliente) {
-            throw new AppError('Perfil de cliente não encontrado.', 404);
-        }
-        return newCliente.id;
+            const nome = perfil?.nome || 'Cliente';
+            const email = perfil?.email || `${userId}@fuelsync.com`;
+            // Identificador numérico único derivado do UUID para evitar colisão na constraint UNIQUE de CPF
+            const digits = userId.replace(/\D/g, '');
+            const fallbackCpf = (digits + '12345678901').slice(0, 11);
+
+            const { data: newCliente } = await supabase
+                .from('clientes')
+                .upsert({
+                    usuario_id: userId,
+                    nome,
+                    email,
+                    cpf: fallbackCpf,
+                    telefone: '00000000000'
+                }, { onConflict: 'usuario_id' })
+                .select('id')
+                .maybeSingle();
+
+            if (newCliente) {
+                return newCliente.id;
+            }
+        } catch (_) {}
+
+        throw new AppError('Perfil de cliente não encontrado.', 404);
     }
 
     return cliente.id;

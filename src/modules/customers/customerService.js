@@ -3,7 +3,7 @@ const AppError = require('../../common/errors/AppError');
 
 const createCustomer = async (customerData) => {
     const { data, error } = await supabase
-        .from('customers')
+        .from('clientes')
         .insert([customerData])
         .select();
 
@@ -19,7 +19,7 @@ const createCustomer = async (customerData) => {
 
 const getCustomers = async () => {
     const { data, error } = await supabase
-        .from('customers')
+        .from('clientes')
         .select('*');
 
     if (error) {
@@ -31,7 +31,7 @@ const getCustomers = async () => {
 
 const updateCustomer = async (customerId, updatedData) => {
     const { data, error } = await supabase
-        .from('customers')
+        .from('clientes')
         .update(updatedData)
         .eq('id', customerId)
         .select();
@@ -52,7 +52,7 @@ const updateCustomer = async (customerId, updatedData) => {
 
 const deleteCustomer = async (customerId) => {
     const { data, error } = await supabase
-        .from('customers')
+        .from('clientes')
         .delete()
         .eq('id', customerId)
         .select();
