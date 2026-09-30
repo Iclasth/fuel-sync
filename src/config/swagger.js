@@ -1,0 +1,37 @@
+const swaggerJsdoc = require('swagger-jsdoc');
+const swaggerUi = require('swagger-ui-express');
+
+const swaggerDefinition = 
+{
+    openapi: '3.0.0',
+    info: {
+        title: 'NAVROTAS API',
+        version: '1.0.0',
+        description: 'API da plataforma NAVROTAS para gestão e distribuição de combustíveis náuticos e terrestres',
+    },
+    servers: [
+        {
+            url: 'http://localhost:3000',
+            description: 'Server URL'
+        },   
+    ],
+    components: {
+        securitySchemes: {
+            bearerAuth: {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                description: 'Insira o token JWT emitido pelo Supabase Auth'
+            }
+        }
+    }
+};
+
+const options = {
+    swaggerDefinition,
+    apis: ['./src/routes/*.js', './src/modules/**/*.js'], // Caminho para os arquivos de rotas
+};
+
+const swaggerSpec = swaggerJsdoc(options);
+
+module.exports = { swaggerUi, swaggerSpec };

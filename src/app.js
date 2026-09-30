@@ -1,11 +1,38 @@
-const express = require('express')
-const app = express()
-const port = 3000
+const express = require('express');
+const cors = require('cors');
+const { swaggerUi, swaggerSpec } = require('./config/swagger.js');
+const errorHandler = require('./common/middlewares/errorHandler.js');
 
-app.get('/', (req, res) => {
-  res.send('Olá Mundo!')
-})
+const app = express();
 
-app.listen(port, () => {
-  console.log(`Exemplo de app rodando em http://localhost:${port}`)
-})
+// Middlewares
+app.use(cors());
+app.use(express.json());
+
+// Documentação Swagger UI
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Rotas dos módulos
+const authRoutes = require('./modules/auth/authRoutes.js');
+const customerRoutes = require('./modules/customers/customerRoutes.js');
+const stationRoutes = require('./modules/stations/stationRoutes.js');
+const courierRoutes = require('./modules/couriers/courierRoutes.js');
+const catalogRoutes = require('./modules/catalog/catalogRoutes.js');
+const orderRoutes = require('./modules/orders/orderRoutes.js');
+const aiRoutes = require('./modules/ai/aiRoutes.js');
+const userRoutes = require('./modules/users/userRoutes.js');
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/customers', customerRoutes);
+app.use('/api/v1/customers', customerRoutes);
+app.use('/api/v1/stations', stationRoutes);
+app.use('/api/v1/couriers', courierRoutes);
+app.use('/api/v1/catalog', catalogRoutes);
+app.use('/api/v1/orders', orderRoutes);
+app.use('/api/v1/ai', aiRoutes);
+app.use('/api/v1/users', userRoutes);
+
+// Middleware centralizado de tratamento de erros
+app.use(errorHandler);
+
+module.exports = app;
