@@ -4,7 +4,9 @@ const {
     calculateHaversineDistance,
     calculateAcceptanceEta,
     calculateBreakdownTimes,
-    formatDurationHoursMinutes
+    formatDurationHoursMinutes,
+    calculateDeliveryWindow,
+    getSafetyGuidelines
 } = require('../../src/modules/ai/etaCalculator');
 
 describe('Unit: AI Module - ETA Calculator', () => {
@@ -308,5 +310,87 @@ describe('Unit: AI Module - ETA Calculator', () => {
             expect(result.tem_atraso_baseline).toBe(false);
         });
     });
-});
 
+    describe('Janela de Entrega Estimada (calculateDeliveryWindow)', () => {
+        it('deve gerar início, fim e formato amigável para horário válido', () => {
+            const eta = '2026-10-10T14:30:00.000Z';
+            const window = calculateDeliveryWindow(eta, 25, 'CONFIRMADO_POSTO');
+
+            expect(window).toHaveProperty('inicio');
+            expect(window).toHaveProperty('fim');
+            expect(window).toHaveProperty('formato_amigavel');
+            expect(typeof window.formato_amigavel).toBe('string');
+            expect(window.formato_amigavel).toMatch(/\d{2}:\d{2} - \d{2}:\d{2}/);
+            expect(new Date(window.inicio).getTime()).toBeLessThan(new Date(window.fim).getTime());
+        });
+
+        it('deve usar fallback determinístico quando horarioPrevistoChegada for inválido ou nulo', () => {
+            const window = calculateDeliveryWindow('invalido', 40, 'EM_PREPARACAO');
+
+            expect(window).toHaveProperty('inicio');
+            expect(window).toHaveProperty('fim');
+            expect(window.formato_amigavel).toMatch(/\d{2}:\d{2} - \d{2}:\d{2}/);
+        });
+    });
+
+    describe('Diretrizes de Segurança Técnica (getSafetyGuidelines - NR-20 e Normam-04)', () => {
+        it('deve retornar diretrizes náuticas específicas para MARINA', () => {
+            const guidelines = getSafetyGuidelines('MARINA', 100);
+
+            expect(Array.isArray(guidelines)).toBe(true);
+            expect(guidelines.length).toBeGreaterThanOrEqual(4);
+            expect(guidelines.some(g => g.includes('Normam-04/DPC'))).toBe(true);
+            expect(guidelines.some(g => g.includes('equalização'))).toBe(true);
+        });
+
+        it('deve retornar diretrizes industriais da NR-20 para EMPRESA ou GERADOR', () => {
+            const guidelines = getSafetyGuidelines('EMPRESA', 200);
+
+            expect(guidelines.some(g => g.includes('NR-20'))).toBe(true);
+            expect(guidelines.some(g => g.includes('aterramento'))).toBe(true);
+        });
+
+        it('deve adicionar recomendação extra para abastecimento de grande volume (>= 500L)', () => {
+            const guidelines = getSafetyGuidelines('MARINA', 600);
+
+            expect(guidelines.some(g => g.includes('volume expressivo (600L)'))).toBe(true);
+            expect(guidelines.some(g => g.includes('válvula de fechamento rápido'))).toBe(true);
+        });
+    });
+
+    describe('Integração com Métricas de Rota Real (routeMetrics)', () => {
+        it('deve incorporar métricas reais de rota fornecidas pelo OSRM', () => {
+            const mockRoute = {
+                distancia_km: 7.25,
+                distancia_linear_km: 4.80,
+                duracao_minutos: 14,
+                geometria: {
+                    type: 'LineString',
+                    coordinates: [[-46.6333, -23.5505], [-46.6253, -23.5186]]
+                },
+                fonte: 'OSRM',
+                anomalia_distancia: false
+            };
+
+            const result = calculateBreakdownTimes({
+                originLat: -23.5505,
+                originLon: -46.6333,
+                destLat: -23.5186,
+                destLon: -46.6253,
+                prepTimeStation: 10,
+                queueOrdersCount: 0,
+                orderStatus: 'EM_TRANSPORTE',
+                routeMetrics: mockRoute
+            });
+
+            expect(result.distanceKm).toBe(7.25);
+            expect(result.tempo_viagem).toBe(14);
+            expect(result.total_minutos).toBe(14);
+            expect(result.fonte_roteamento).toBe('OSRM');
+            expect(result.rota_geometria).toEqual(mockRoute.geometria);
+            expect(result).toHaveProperty('janela_entrega');
+            expect(result).toHaveProperty('recomendacoes_seguranca');
+        });
+    });
+
+});

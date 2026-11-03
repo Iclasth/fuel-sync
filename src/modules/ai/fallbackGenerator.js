@@ -1,4 +1,8 @@
-const { formatDurationHoursMinutes } = require('./etaCalculator');
+const {
+    formatDurationHoursMinutes,
+    calculateDeliveryWindow,
+    getSafetyGuidelines
+} = require('./etaCalculator');
 
 function generateFallbackPrediction(metrics, setbackDescription = null, orderStatus = null) {
     const status = orderStatus || metrics.orderStatus;
@@ -70,11 +74,46 @@ function generateFallbackPrediction(metrics, setbackDescription = null, orderSta
         }
     }
 
+    const janelaEntrega = metrics.janela_entrega || calculateDeliveryWindow(
+        metrics.horario_previsto_chegada,
+        metrics.total_minutos,
+        status
+    );
+
+    const fatoresTempo = {
+        fila_minutos: Number(metrics.tempo_espera) || 0,
+        preparo_minutos: Number(metrics.tempo_preparo) || 0,
+        transito_minutos: Number(metrics.tempo_viagem) || 0,
+        total_minutos: Number(metrics.total_minutos) || 0,
+        explicacao: `Fila no posto: ${Number(metrics.tempo_espera) || 0} min | Preparo da carga: ${Number(metrics.tempo_preparo) || 0} min | Deslocamento em rota: ${Number(metrics.tempo_viagem) || 0} min`
+    };
+
+    const locationType = metrics.locationType || 'MARINA';
+    const recomendacoesSeguranca = Array.isArray(metrics.recomendacoes_seguranca) && metrics.recomendacoes_seguranca.length > 0
+        ? metrics.recomendacoes_seguranca
+        : getSafetyGuidelines(locationType, metrics.litros || 0);
+
+    const condicoesOperacionais = {
+        nivel_trafego: setbackDescription
+            ? 'CONGESTIONADO_OU_ADVERSO'
+            : (metrics.tempo_viagem > 30 ? 'MODERADO' : 'FLUIDO'),
+        complexidade_acesso: ['MARINA', 'CHACARA', 'PONTÃO', 'PONTAO'].includes(String(locationType).toUpperCase())
+            ? 'ALTA'
+            : 'PADRAO',
+        notas: setbackDescription || (isAnomalia
+            ? 'Alerta de distância geográfica excessiva (> 100 km)'
+            : 'Operação em conformidade com os parâmetros normais')
+    };
+
     return {
         confianca,
         risco_atraso: temRisco,
         motivo_risco: motivoRisco,
-        mensagem
+        mensagem,
+        janela_entrega: janelaEntrega,
+        fatores_tempo: fatoresTempo,
+        recomendacoes_seguranca: recomendacoesSeguranca,
+        condicoes_operacionais: condicoesOperacionais
     };
 }
 

@@ -1,8 +1,31 @@
 const supabase = require('../../config/supabaseClient');
 const AppError = require('../../common/errors/AppError');
 const { calculateBreakdownTimes } = require('./etaCalculator');
+const { fetchRealRoute } = require('./routingClient');
 const { generateCognitivePrediction } = require('./groqClient');
 const { generateFallbackPrediction } = require('./fallbackGenerator');
+
+const predictionCache = new Map();
+const DEFAULT_CACHE_TTL_MS = process.env.AI_CACHE_TTL_MS
+    ? parseInt(process.env.AI_CACHE_TTL_MS, 10)
+    : 45 * 1000; // 45 segundos (TTL entre 30s e 60s)
+
+function pruneExpiredCache() {
+    const now = Date.now();
+    for (const [key, entry] of predictionCache.entries()) {
+        if (entry.expiresAt <= now && !entry.promise) {
+            predictionCache.delete(key);
+        }
+    }
+}
+
+function clearPredictionCache() {
+    predictionCache.clear();
+}
+
+function getPredictionCache() {
+    return predictionCache;
+}
 
 async function predictEtaForOrder({
     orderId = null,
@@ -11,7 +34,8 @@ async function predictEtaForOrder({
     destination,
     pendingDeliveries = 0,
     customerName = 'Cliente',
-    setbackDescription = null
+    setbackDescription = null,
+    user = null
 }) {
     let resolvedStation = station;
     let resolvedDestination = destination;
@@ -23,11 +47,53 @@ async function predictEtaForOrder({
         try {
             const { data } = await supabase
                 .from('pedidos')
-                .select('id, cliente_id, posto_id, status, destino_latitude, destino_longitude, tipo_local, ponto_referencia, horario_previsto_entrega, tempo_estimado_entrega_minutos, created_at, posto:postos (id, nome_fantasia, razao_social, latitude, longitude, tempo_medio_preparo_minutos)')
+                .select('id, cliente_id, posto_id, status, destino_latitude, destino_longitude, tipo_local, ponto_referencia, horario_previsto_entrega, tempo_estimado_entrega_minutos, created_at, posto:postos (id, nome_fantasia, razao_social, latitude, longitude, tempo_medio_preparo_minutos), itens_pedido (quantidade_litros)')
                 .eq('id', Number(orderId))
                 .maybeSingle();
 
             dbOrder = data;
+
+            // Validação estrita de autorização (Anti-BOLA / IDOR)
+            if (dbOrder && user && user.role !== 'admin_geral') {
+                if (user.role === 'cliente') {
+                    const clientQuery = supabase
+                        .from('clientes')
+                        .select('id')
+                        .eq('usuario_id', user.id);
+                    const { data: clienteRecord } = typeof clientQuery?.maybeSingle === 'function'
+                        ? await clientQuery.maybeSingle()
+                        : (typeof clientQuery?.single === 'function' ? await clientQuery.single() : { data: null });
+
+                    if (clienteRecord && dbOrder.cliente_id && dbOrder.cliente_id !== clienteRecord.id) {
+                        throw new AppError('Acesso negado: você não possui autorização para consultar este pedido.', 403);
+                    }
+                } else if (user.role === 'entregador') {
+                    const courierQuery = supabase
+                        .from('entregadores')
+                        .select('id')
+                        .eq('usuario_id', user.id);
+                    const { data: entregadorRecord } = typeof courierQuery?.maybeSingle === 'function'
+                        ? await courierQuery.maybeSingle()
+                        : (typeof courierQuery?.single === 'function' ? await courierQuery.single() : { data: null });
+
+                    if (entregadorRecord && dbOrder.entregador_id && dbOrder.entregador_id !== entregadorRecord.id) {
+                        throw new AppError('Acesso negado: este pedido não está atribuído ao seu perfil.', 403);
+                    }
+                } else if (user.role === 'posto_admin') {
+                    const stationAdminQuery = supabase
+                        .from('posto_administradores')
+                        .select('posto_id')
+                        .eq('usuario_id', user.id)
+                        .eq('posto_id', dbOrder.posto_id);
+                    const { data: stationAdmin } = typeof stationAdminQuery?.maybeSingle === 'function'
+                        ? await stationAdminQuery.maybeSingle()
+                        : (typeof stationAdminQuery?.single === 'function' ? await stationAdminQuery.single() : { data: null });
+
+                    if (typeof stationAdminQuery?.maybeSingle === 'function' && !stationAdmin) {
+                        throw new AppError('Acesso negado: pedido não pertence ao posto administrado.', 403);
+                    }
+                }
+            }
 
             if (dbOrder) {
                 if (dbOrder.posto && typeof dbOrder.posto.latitude === 'number' && typeof dbOrder.posto.longitude === 'number') {
@@ -143,6 +209,7 @@ async function predictEtaForOrder({
                 }
             }
         } catch (dbErr) {
+            if (dbErr instanceof AppError) throw dbErr;
             console.warn('Aviso: Não foi possível resolver dados canônicos do pedido/posto:', dbErr.message);
         }
     }
@@ -154,7 +221,65 @@ async function predictEtaForOrder({
         throw new AppError('Dados de localização de destino são obrigatórios.', 400);
     }
 
-    // 1. Pilar 1: Cálculo Matemático Preciso (Node.js com tortuosidade viária/náutica)
+    // Chave de cache idempotente para impedir predições duplicadas
+    const cacheKey = orderId
+        ? `order_${orderId}_${dbOrder?.status || 'UNKNOWN'}`
+        : `coords_${resolvedStation.latitude}_${resolvedStation.longitude}_${resolvedDestination.latitude}_${resolvedDestination.longitude}_${setbackDescription || 'none'}`;
+
+    const now = Date.now();
+    const cached = predictionCache.get(cacheKey);
+
+    if (cached) {
+        if (cached.data && cached.expiresAt > now) {
+            return { ...cached.data };
+        }
+        if (cached.promise) {
+            const inFlightResult = await cached.promise;
+            return { ...inFlightResult };
+        }
+        predictionCache.delete(cacheKey);
+    }
+
+    let resolveInFlight;
+    let rejectInFlight;
+    const inFlightPromise = new Promise((resolve, reject) => {
+        resolveInFlight = resolve;
+        rejectInFlight = reject;
+    });
+
+    if (predictionCache.size > 500) {
+        pruneExpiredCache();
+        if (predictionCache.size > 500) {
+            const oldestKey = predictionCache.keys().next().value;
+            predictionCache.delete(oldestKey);
+        }
+    }
+
+    predictionCache.set(cacheKey, {
+        promise: inFlightPromise,
+        expiresAt: now + DEFAULT_CACHE_TTL_MS
+    });
+
+    try {
+        // 1. Pilar 1: Obtenção de Rota Real via OSRM com Fallback de Haversine
+    let routeMetrics = null;
+    try {
+        routeMetrics = await fetchRealRoute({
+            originLat: resolvedStation.latitude,
+            originLon: resolvedStation.longitude,
+            destLat: resolvedDestination.latitude,
+            destLon: resolvedDestination.longitude,
+            locationType: resolvedDestination.tipo_local
+        });
+    } catch (routeErr) {
+        console.warn('Aviso: Falha ao consultar routingClient. Utilizando cálculo integrado:', routeErr.message);
+    }
+
+    const totalLiters = Array.isArray(dbOrder?.itens_pedido)
+        ? dbOrder.itens_pedido.reduce((acc, it) => acc + (Number(it.quantidade_litros) || 0), 0)
+        : 0;
+
+    // 2. Cálculo dos Tempos Operacionais Decompostos
     const metrics = calculateBreakdownTimes({
         originLat: resolvedStation.latitude,
         originLon: resolvedStation.longitude,
@@ -165,10 +290,12 @@ async function predictEtaForOrder({
         queueOrdersCount: queueCount,
         locationType: resolvedDestination.tipo_local,
         orderStatus: dbOrder?.status || null,
-        baselineEta: dbOrder?.horario_previsto_entrega || null
+        baselineEta: dbOrder?.horario_previsto_entrega || null,
+        routeMetrics,
+        liters: totalLiters
     });
 
-    // 2. Persistência do Baseline Inicial de Entrega no Pedido quando em CONFIRMADO_POSTO
+    // 3. Persistência do Baseline Inicial de Entrega no Pedido quando em CONFIRMADO_POSTO
     if (dbOrder && dbOrder.status === 'CONFIRMADO_POSTO' && !dbOrder.horario_previsto_entrega) {
         try {
             await supabase
@@ -185,7 +312,7 @@ async function predictEtaForOrder({
         }
     }
 
-    // 3. Pilar 2: Tenta obter avaliação cognitiva via Groq LPU (com fallback determinístico)
+    // 4. Pilar 2: Avaliação Cognitiva via Groq LPU (com fallback determinístico)
     let cognitiveResult = null;
     try {
         cognitiveResult = await generateCognitivePrediction({
@@ -234,7 +361,8 @@ async function predictEtaForOrder({
         } catch (_) {}
     }
 
-    // 4. Persistência na tabela canônica 'previsoes_ia' do Supabase / PostgreSQL
+    // 5. Persistência na tabela canônica 'previsoes_ia' do Supabase / PostgreSQL
+    // ATENÇÃO: Enviar estritamente as colunas suportadas pela tabela para não violar a integridade
     const rawConfidence = Number(cognitiveResult.confianca);
     const normalizedScore = Number.isFinite(rawConfidence)
         ? Math.min(Math.max(rawConfidence > 1 ? rawConfidence / 100 : rawConfidence, 0), 1)
@@ -286,27 +414,62 @@ async function predictEtaForOrder({
         console.warn('Aviso: Exceção ao gravar em previsoes_ia:', dbErr.message);
     }
 
-    return {
-        ...saved,
-        // Aliases amigáveis para consumo unificado no front-end
-        horario_previsto_chegada: saved.eta_previsto,
-        tempo_espera: saved.tempo_espera_liberacao_minutos,
-        tempo_preparo: saved.tempo_preparo_posto_minutos,
-        tempo_viagem: saved.tempo_viagem_cliente_minutos,
-        confianca: Math.round(Number(saved.confianca_score) * 100),
-        motivo_risco: saved.fator_principal_risco,
-        mensagem: saved.mensagem_humanizada,
-        distancia_km: metrics.distanceKm,
-        distancia_linear_km: metrics.distancia_linear_km,
-        total_minutos: metrics.total_minutos,
-        tempo_formatado: metrics.tempo_formatado,
-        anomalia_distancia: metrics.anomalia_distancia,
-        tipo_fase: metrics.tipo_fase,
-        fila_pedidos: metrics.fila_pedidos,
-        horario_baseline: dbOrder?.horario_previsto_entrega || metrics.horario_previsto_chegada,
-        delta_atraso_minutos: metrics.delta_atraso_minutos,
-        tem_atraso_baseline: metrics.tem_atraso_baseline
-    };
+        // 6. Retorno unificado enriquecido com retrocompatibilidade total
+        const finalResult = {
+            ...saved,
+            // Aliases amigáveis para consumo unificado no front-end
+            horario_previsto_chegada: saved.eta_previsto,
+            tempo_espera: saved.tempo_espera_liberacao_minutos,
+            tempo_preparo: saved.tempo_preparo_posto_minutos,
+            tempo_viagem: saved.tempo_viagem_cliente_minutos,
+            confianca: Math.round(Number(saved.confianca_score) * 100),
+            motivo_risco: saved.fator_principal_risco,
+            mensagem: saved.mensagem_humanizada,
+            distancia_km: metrics.distanceKm,
+            distancia_linear_km: metrics.distancia_linear_km,
+            total_minutos: metrics.total_minutos,
+            tempo_formatado: metrics.tempo_formatado,
+            anomalia_distancia: metrics.anomalia_distancia,
+            tipo_fase: metrics.tipo_fase,
+            fila_pedidos: metrics.fila_pedidos,
+            horario_baseline: dbOrder?.horario_previsto_entrega || metrics.horario_previsto_chegada,
+            delta_atraso_minutos: metrics.delta_atraso_minutos,
+            tem_atraso_baseline: metrics.tem_atraso_baseline,
+            // Novos metadados e estruturas operacionais
+            rota_geometria: metrics.rota_geometria,
+            fonte_roteamento: metrics.fonte_roteamento,
+            janela_entrega: cognitiveResult.janela_entrega || metrics.janela_entrega,
+            fatores_tempo: cognitiveResult.fatores_tempo || {
+                fila_minutos: metrics.tempo_espera,
+                preparo_minutos: metrics.tempo_preparo,
+                transito_minutos: metrics.tempo_viagem,
+                total_minutos: metrics.total_minutos,
+                explicacao: `Fila no posto: ${metrics.tempo_espera} min | Preparo da carga: ${metrics.tempo_preparo} min | Deslocamento em rota: ${metrics.tempo_viagem} min`
+            },
+            recomendacoes_seguranca: cognitiveResult.recomendacoes_seguranca || metrics.recomendacoes_seguranca,
+            condicoes_operacionais: cognitiveResult.condicoes_operacionais || {
+                nivel_trafego: setbackDescription ? 'CONGESTIONADO_OU_ADVERSO' : (metrics.tempo_viagem > 30 ? 'MODERADO' : 'FLUIDO'),
+                complexidade_acesso: ['MARINA', 'CHACARA', 'PONTÃO', 'PONTAO'].includes(String(resolvedDestination.tipo_local).toUpperCase()) ? 'ALTA' : 'PADRAO',
+                notas: setbackDescription || (metrics.anomalia_distancia ? 'Alerta de distância geográfica excessiva (> 100 km)' : 'Operação em conformidade com os parâmetros normais')
+            }
+        };
+
+        predictionCache.set(cacheKey, {
+            data: finalResult,
+            expiresAt: Date.now() + DEFAULT_CACHE_TTL_MS
+        });
+        resolveInFlight(finalResult);
+
+        return { ...finalResult };
+    } catch (calcErr) {
+        predictionCache.delete(cacheKey);
+        rejectInFlight(calcErr);
+        throw calcErr;
+    }
 }
 
-module.exports = { predictEtaForOrder };
+module.exports = {
+    predictEtaForOrder,
+    clearPredictionCache,
+    getPredictionCache
+};

@@ -76,11 +76,50 @@ router.use(authMiddleware);
  *       200:
  *         description: Previsão de ETA calculada com sucesso
  *       201:
- *         description: Estimativa cognitiva criada e registrada com sucesso
+ *         description: Estimativa cognitiva criada e registrada com sucesso com telemetria enriquecida
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     horario_previsto_chegada:
+ *                       type: string
+ *                       format: date-time
+ *                     confianca:
+ *                       type: integer
+ *                       example: 94
+ *                     distancia_km:
+ *                       type: number
+ *                       example: 5.12
+ *                     fonte_roteamento:
+ *                       type: string
+ *                       enum: [OSRM, HAVERSINE_FALLBACK]
+ *                       example: OSRM
+ *                     rota_geometria:
+ *                       type: object
+ *                       description: Geometria vetorial GeoJSON LineString da rota
+ *                     janela_entrega:
+ *                       type: object
+ *                     fatores_tempo:
+ *                       type: object
+ *                     recomendacoes_seguranca:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     condicoes_operacionais:
+ *                       type: object
  *       400:
  *         description: Parâmetros insuficientes ou inválidos para cálculo do ETA (station e destination ausentes sem orderId)
  *       401:
  *         description: Não autenticado ou token inválido
+ *       403:
+ *         description: Acesso negado por violação de autorização de objeto (Anti-BOLA/IDOR)
  */
 router.post('/predict-eta', aiController.predictEta);
 
