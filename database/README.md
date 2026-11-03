@@ -6,20 +6,28 @@ Este documento descreve a modelagem relacional, constraints, índices e o dicion
 
 ## 1. Visão Geral da Modelagem
 
-O modelo de dados foi projetado para operações **B2C (consumidores civis, marinas, geradores em condomínios e chácaras)** com ciclo logístico fechado **Posto -> Cliente -> Posto (Hub-and-Spoke)**.
+O modelo de dados foi projetado para operações **B2C (consumidores civis, marinas, geradores em condomínios e chácaras)** com ciclo logístico fechado **Posto -> Cliente -> Posto (Hub-and-Spoke)** e arquitetura **multi-tenant** com precificação descentralizada por posto.
 
 ```mermaid
 erDiagram
     perfis_usuarios ||--o| clientes : "perfil civil"
     perfis_usuarios ||--o| entregadores : "perfil entregador"
+    perfis_usuarios ||--o{ posto_administradores : "perfil posto_admin"
+    postos ||--o{ posto_administradores : "possui administradores"
+    postos ||--o{ posto_combustiveis : "define catálogo e preços"
+    combustiveis ||--o{ posto_combustiveis : "precificado em"
+    posto_combustiveis ||--o{ historico_precos_combustivel : "audita alterações"
     postos ||--o{ entregadores : "cadastra"
     postos ||--o{ pedidos : "atende"
+    clientes ||--o{ locais_entrega_cliente : "cadastra endereços"
     clientes ||--o{ pedidos : "solicita"
     pedidos ||--|{ itens_pedido : "contém"
     combustiveis ||--o{ itens_pedido : "especifica"
-    pedidos ||--|| entregas : "origina (1:1)"
+    entregadores ||--o{ pedidos : "alocado em"
+    pedidos ||--o| entregas : "origina (1:1)"
     entregadores ||--o{ entregas : "transporta"
-    entregas ||--o{ previsoes_ia : "recebe estimativas"
+    pedidos ||--o{ previsoes_ia : "recebe estimativas"
+    entregas ||--o{ previsoes_ia : "vincula estimativas"
     entregas ||--o{ historico_status_entrega : "registra eventos"
 ```
 
@@ -35,7 +43,7 @@ Armazena a referência de perfil vinculada à conta autenticada no Supabase Auth
 | `id` | `UUID` | `PRIMARY KEY` | Identificador do usuário emitido pelo Supabase Auth |
 | `email` | `VARCHAR(150)` | `NOT NULL, UNIQUE` | E-mail corporativo ou pessoal |
 | `nome` | `VARCHAR(120)` | `NOT NULL` | Nome completo do usuário |
-| `role` | `VARCHAR(20)` | `NOT NULL, CHECK (cliente, posto_admin, entregador)` | Papel de acesso no sistema (RBAC) |
+| `role` | `VARCHAR(20)` | `NOT NULL, CHECK (cliente, posto_admin, entregador, admin_geral)` | Papel de acesso no sistema (RBAC) expandido na migração 002 |
 | `created_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data e hora de criação |
 
 ---
@@ -100,7 +108,7 @@ Condutores credenciados pelo posto operando veículos leves/utilitários homolog
 ---
 
 ### 2.5 `combustiveis`
-Catálogo de produtos combustíveis disponíveis para entrega civil.
+Catálogo global de produtos combustíveis disponíveis para entrega civil.
 
 | Coluna | Tipo | Constraints | Descrição |
 | :--- | :--- | :--- | :--- |
@@ -118,7 +126,8 @@ Cabeçalho das solicitações de abastecimento feitas pelos clientes civis.
 | `id` | `SERIAL` | `PRIMARY KEY` | Número do pedido |
 | `cliente_id` | `INTEGER` | `NOT NULL, REFERENCES clientes(id)` | Cliente solicitante |
 | `posto_id` | `INTEGER` | `NOT NULL, REFERENCES postos(id)` | Posto responsável pelo fornecimento |
-| `status` | `VARCHAR(30)` | `CHECK (PENDENTE, CONFIRMADO_POSTO, EM_PREPARACAO, EM_TRANSPORTE, CONCLUIDO, CANCELADO)` | Estado do pedido |
+| `entregador_id` | `INTEGER` | `REFERENCES entregadores(id) ON DELETE SET NULL` | Condutor/entregador alocado para o despacho (obrigatório para status `EM_TRANSPORTE`, migração 005) |
+| `status` | `VARCHAR(30)` | `CHECK (PENDENTE, CONFIRMADO_POSTO, EM_PREPARACAO, EM_TRANSPORTE, CONCLUIDO, CANCELADO)` | Estado do ciclo de vida do pedido |
 | `valor_total` | `DECIMAL(12,2)` | `NOT NULL, CHECK (>= 0)` | Valor total acumulado dos itens |
 | `endereco_entrega` | `VARCHAR(255)` | `NOT NULL` | Local onde o abastecimento ocorrerá |
 | `ponto_referencia` | `VARCHAR(150)` | | Píer, vaga, ramal ou condomínio |
@@ -126,6 +135,8 @@ Cabeçalho das solicitações de abastecimento feitas pelos clientes civis.
 | `instrucoes_adicionais` | `TEXT` | | Orientações de acesso para o entregador |
 | `destino_latitude` | `DECIMAL(9,6)` | `NOT NULL, CHECK (-90 a 90)` | Coordenada exata do destino |
 | `destino_longitude` | `DECIMAL(9,6)` | `NOT NULL, CHECK (-180 a 180)` | Coordenada exata do destino |
+| `horario_previsto_entrega` | `TIMESTAMP WITH TIME ZONE` | | Marco oficial de estimativa de entrega (baseline) fixado no aceite pelo posto (migração 007) |
+| `tempo_estimado_entrega_minutos` | `INTEGER` | `CHECK (>= 0)` | Duração total estimada em minutos no momento da confirmação (baseline, migração 007) |
 | `data_pedido` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data de emissão |
 
 ---
@@ -164,21 +175,22 @@ Representa a execução física da entrega seguindo o ciclo Posto-Cliente-Posto.
 ---
 
 ### 2.9 `previsoes_ia`
-Registros das estimativas inteligentes geradas pelo motor preditivo de IA.
+Registros das estimativas inteligentes geradas pelo motor preditivo de IA (Groq Cloud LPU e telemetria).
 
 | Coluna | Tipo | Constraints | Descrição |
 | :--- | :--- | :--- | :--- |
 | `id` | `BIGSERIAL` | `PRIMARY KEY` | Identificador da previsão |
-| `entrega_id` | `INTEGER` | `NOT NULL, REFERENCES entregas(id) ON DELETE CASCADE` | Entrega avaliada |
+| `pedido_id` | `BIGINT` | `REFERENCES pedidos(id) ON DELETE CASCADE` | Vínculo direto ao pedido, permitindo estimativas antes da geração do registro em `entregas` (migração 006) |
+| `entrega_id` | `INTEGER` | `REFERENCES entregas(id) ON DELETE CASCADE` | Entrega vinculada (opcional pós-migração 006) |
 | `eta_previsto` | `TIMESTAMP WITH TIME ZONE` | `NOT NULL` | Horário estimado de chegada ao local do cliente |
 | `tempo_espera_liberacao_minutos` | `INTEGER` | `DEFAULT 0, CHECK (>= 0)` | Tempo restante da entrega anterior + retorno ao posto |
 | `tempo_preparo_posto_minutos` | `INTEGER` | `DEFAULT 12, CHECK (>= 0)` | Tempo de carregamento deste pedido no posto |
-| `tempo_viagem_cliente_minutos` | `INTEGER` | `DEFAULT 0, CHECK (>= 0)` | Deslocamento rodoviário do posto até o cliente |
-| `confianca_score` | `DECIMAL(5,4)` | `CHECK (0 a 1)` | Nível de precisão da estimativa |
-| `risco_atraso` | `BOOLEAN` | `DEFAULT FALSE` | Indicador de risco iminente de atraso |
-| `fator_principal_risco` | `VARCHAR(100)` | | Fator causal (ex: `DEMORA_PARADA_ANTERIOR`, `TRANSITO`) |
-| `mensagem_humanizada` | `TEXT` | `NOT NULL` | Texto explicativo claro exibido no app civil |
-| `criado_em` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data do cálculo |
+| `tempo_viagem_cliente_minutos` | `INTEGER` | `DEFAULT 0, CHECK (>= 0)` | Deslocamento rodoviário/naval do posto até o cliente |
+| `confianca_score` | `DECIMAL(5,4)` | `CHECK (0 a 1)` | Nível de precisão da estimativa estatística/cognitiva |
+| `risco_atraso` | `BOOLEAN` | `DEFAULT FALSE` | Indicador de risco iminente de desvio operacional |
+| `fator_principal_risco` | `VARCHAR(255)` | | Fator causal (ex: `DEMORA_PARADA_ANTERIOR`, `TRANSITO`, tamanho expandido na migração 006) |
+| `mensagem_humanizada` | `TEXT` | `NOT NULL` | Texto explicativo claro exibido no aplicativo do cliente |
+| `criado_em` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data e hora do cálculo preditivo |
 
 ---
 
@@ -199,11 +211,95 @@ Registro imutável de auditoria de cada evento de avanço ou alteração da entr
 
 ---
 
+### 2.11 `posto_administradores`
+Vinculação multi-tenant entre administradores de posto (`posto_admin`) e as unidades parceiras (`postos`). (Migração 002).
+
+| Coluna | Tipo | Constraints | Descrição |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY, DEFAULT gen_random_uuid()` | Identificador único da permissão de vínculo |
+| `user_id` | `UUID` | `NOT NULL` | Identificador do usuário no Supabase Auth (`perfis_usuarios.id`) |
+| `posto_id` | `INTEGER` | `NOT NULL, REFERENCES postos(id) ON DELETE CASCADE` | Posto sob gestão do administrador |
+| `criado_em` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data e hora da associação |
+
+*Constraint única:* `uq_posto_admin_link (user_id, posto_id)`
+
+---
+
+### 2.12 `posto_combustiveis`
+Catálogo de precificação independente e saldo de estoque por combustível para cada posto parceiro. (Migração 002).
+
+| Coluna | Tipo | Constraints | Descrição |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY, DEFAULT gen_random_uuid()` | Identificador único do registro de preço/estoque |
+| `posto_id` | `INTEGER` | `NOT NULL, REFERENCES postos(id) ON DELETE CASCADE` | Posto fornecedor |
+| `combustivel_id` | `INTEGER` | `NOT NULL, REFERENCES combustiveis(id) ON DELETE CASCADE` | Combustível precificado |
+| `preco_litro` | `NUMERIC(10,2)` | `NOT NULL, CHECK (preco_litro > 0)` | Preço por litro praticado pelo posto |
+| `estoque_litros` | `NUMERIC(12,2)` | `NOT NULL, DEFAULT 0.00, CHECK (estoque_litros >= 0)` | Saldo de combustível disponível nos tanques da base |
+| `disponivel` | `BOOLEAN` | `NOT NULL, DEFAULT TRUE` | Flag de disponibilidade para novos pedidos |
+| `atualizado_em` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data da última alteração de preço ou estoque |
+| `atualizado_por` | `UUID` | | Usuário responsável pela atualização |
+
+*Constraint única:* `uq_posto_combustivel_preco (posto_id, combustivel_id)`
+
+---
+
+### 2.13 `historico_precos_combustivel`
+Auditoria automatizada via trigger nativa do PostgreSQL (`trg_audit_preco_combustivel`) para rastreamento de flutuação de preços por posto. (Migração 002).
+
+| Coluna | Tipo | Constraints | Descrição |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | `PRIMARY KEY, DEFAULT gen_random_uuid()` | Identificador do registro de auditoria |
+| `posto_combustivel_id` | `UUID` | `REFERENCES posto_combustiveis(id) ON DELETE SET NULL` | Registro original da precificação |
+| `posto_id` | `INTEGER` | `NOT NULL, REFERENCES postos(id) ON DELETE CASCADE` | Posto associado |
+| `combustivel_id` | `INTEGER` | `NOT NULL, REFERENCES combustiveis(id) ON DELETE CASCADE` | Combustível que sofreu alteração |
+| `preco_anterior` | `NUMERIC(10,2)` | | Preço anterior à modificação (NULL na inclusão inicial) |
+| `preco_novo` | `NUMERIC(10,2)` | `NOT NULL, CHECK (preco_novo > 0)` | Novo preço por litro registrado |
+| `alterado_em` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Momento exato da alteração tarifária |
+| `alterado_por` | `UUID` | | Usuário que executou a modificação |
+
+---
+
+### 2.14 `locais_entrega_cliente`
+Múltiplos locais e pontos de abastecimento cadastrados pelos clientes civis (marinas, trapiches, ramais e condomínios). (Migração 003).
+
+| Coluna | Tipo | Constraints | Descrição |
+| :--- | :--- | :--- | :--- |
+| `id` | `SERIAL` | `PRIMARY KEY` | Identificador sequencial do local de entrega |
+| `cliente_id` | `INTEGER` | `NOT NULL, REFERENCES clientes(id) ON DELETE CASCADE` | Cliente titular do endereço |
+| `apelido` | `VARCHAR(120)` | `NOT NULL` | Identificador descritivo (ex: "Marina da Glória - Vaga 14", "Trapiche Principal") |
+| `tipo_local` | `VARCHAR(30)` | `NOT NULL, CHECK (tipo_local IN ('MARINA', 'CONDOMINIO', 'CHACARA', 'RODOVIA', 'RESIDENCIA', 'OUTRO'))` | Classificação operacional do local civil |
+| `endereco` | `VARCHAR(255)` | `NOT NULL` | Endereço ou referência geográfica textual |
+| `ponto_referencia` | `VARCHAR(150)` | | Píer, vaga, atracadouro ou orientações de acesso |
+| `latitude` | `DECIMAL(9,6)` | `NOT NULL, CHECK (latitude BETWEEN -90 AND 90)` | Coordenada geográfica de latitude |
+| `longitude` | `DECIMAL(9,6)` | `NOT NULL, CHECK (longitude BETWEEN -180 AND 180)` | Coordenada geográfica de longitude |
+| `padrao` | `BOOLEAN` | `DEFAULT FALSE` | Indicador se este é o local de entrega padrão do cliente |
+| `created_at` | `TIMESTAMP WITH TIME ZONE` | `DEFAULT CURRENT_TIMESTAMP` | Data e hora de criação |
+
+---
+
 ## 3. Índices de Otimização de Consultas
 
-1. `idx_entregas_fila`: `(entregador_id, status_entrega, ordem_na_fila)`
+1. `idx_entregas_fila`: `(entregador_id, status_entrega, ordem_na_fila)` — Tabela `entregas`
    - Otimiza a recuperação da fila ativa do entregador e a automação do próximo cliente a ser preparado.
-2. `idx_previsoes_entrega`: `(entrega_id, criado_em DESC)`
-   - Otimiza a consulta imediata da previsão de ETA mais recente para exibição no aplicativo do cliente civil.
-3. `idx_historico_entrega`: `(entrega_id, criado_em DESC)`
+2. `idx_previsoes_entrega`: `(entrega_id, criado_em DESC)` — Tabela `previsoes_ia`
+   - Otimiza a consulta imediata da previsão de ETA mais recente por entrega para exibição no aplicativo do cliente civil.
+3. `idx_historico_entrega`: `(entrega_id, criado_em DESC)` — Tabela `historico_status_entrega`
    - Otimiza a linha do tempo e auditoria da entrega.
+4. `idx_posto_administradores_user`: `(user_id)` — Tabela `posto_administradores` (Migração 002)
+   - Agiliza a verificação de permissões do usuário autenticado sobre seus postos vinculados.
+5. `idx_posto_administradores_posto`: `(posto_id)` — Tabela `posto_administradores` (Migração 002)
+   - Otimiza a listagem de administradores por unidade de posto.
+6. `idx_posto_combustiveis_posto`: `(posto_id)` — Tabela `posto_combustiveis` (Migração 002)
+   - Acelera a consulta do catálogo e tabela de preços por posto.
+7. `idx_posto_combustiveis_combustivel`: `(combustivel_id)` — Tabela `posto_combustiveis` (Migração 002)
+   - Agiliza a busca de postos que comercializam determinado combustível.
+8. `idx_hist_precos_posto_combustivel`: `(posto_id, combustivel_id, alterado_em DESC)` — Tabela `historico_precos_combustivel` (Migração 002)
+   - Otimiza o histórico temporal de auditoria tarifária por combustível de cada posto.
+9. `idx_locais_entrega_cliente_id`: `(cliente_id)` — Tabela `locais_entrega_cliente` (Migração 003)
+   - Acelera a recuperação de endereços salvos pelo cliente autenticado no fluxo de compra.
+10. `idx_pedidos_entregador_id`: `(entregador_id)` — Tabela `pedidos` (Migração 005)
+    - Otimiza o despacho e a listagem de pedidos designados a um entregador específico.
+11. `idx_previsoes_pedido`: `(pedido_id, criado_em DESC)` — Tabela `previsoes_ia` (Migração 006)
+    - Agiliza a consulta direta da previsão preditiva associada ao pedido antes ou durante o transporte.
+12. `idx_pedidos_posto_status`: `(posto_id, status)` — Tabela `pedidos` (Migração 007)
+    - Otimiza as contagens e visualizações de pedidos em fila de espera (`PENDENTE`, `CONFIRMADO_POSTO`, `EM_PREPARACAO`) por posto.

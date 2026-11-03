@@ -127,16 +127,76 @@ describe('Integration: AI Routes (/api/v1/ai)', () => {
         expect(res.body.error).toContain('Token de autenticação não fornecido');
     });
 
-    it('deve rejeitar com 400 se station ou destination forem omitidos', async () => {
+    it('deve rejeitar com 400 se station ou destination forem omitidos e orderId não for fornecido', async () => {
         mockAuthUser();
+
+        const res = await request(app)
+            .post('/api/v1/ai/predict-eta')
+            .set('Authorization', 'Bearer valid-jwt-token')
+            .send({ pendingDeliveries: 1 });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toContain('Dados de posto e destino são obrigatórios');
+    });
+
+    it('deve permitir requisição de ETA apenas com orderId sem exigir station ou destination no body', async () => {
+        mockAuthUser();
+
+        supabase.from.mockImplementation((table) => {
+            if (table === 'perfis_usuarios') {
+                return {
+                    select: jest.fn().mockReturnThis(),
+                    eq: jest.fn().mockReturnThis(),
+                    maybeSingle: jest.fn().mockResolvedValue({
+                        data: { id: 'usr-test-1', email: 'test@navrotas.com', role: 'cliente' },
+                        error: null
+                    })
+                };
+            }
+            if (table === 'pedidos') {
+                return {
+                    select: jest.fn().mockReturnThis(),
+                    eq: jest.fn().mockReturnThis(),
+                    maybeSingle: jest.fn().mockResolvedValue({
+                        data: {
+                            id: 101,
+                            posto_id: 5,
+                            destino_latitude: -8.058800,
+                            destino_longitude: -34.890600,
+                            tipo_local: 'MARINA',
+                            ponto_referencia: 'Cais 2',
+                            posto: {
+                                id: 5,
+                                latitude: -8.072200,
+                                longitude: -34.876700,
+                                tempo_medio_preparo_minutos: 15
+                            }
+                        },
+                        error: null
+                    })
+                };
+            }
+            return {
+                select: jest.fn().mockReturnThis(),
+                eq: jest.fn().mockReturnThis(),
+                maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null })
+            };
+        });
+
+        generateCognitivePrediction.mockResolvedValueOnce({
+            confianca: 92,
+            risco_atraso: false,
+            motivo_risco: null,
+            mensagem: 'Chegada prevista em 24 min.'
+        });
 
         const res = await request(app)
             .post('/api/v1/ai/predict-eta')
             .set('Authorization', 'Bearer valid-jwt-token')
             .send({ orderId: 101 });
 
-        expect(res.status).toBe(400);
-        expect(res.body.message).toContain('Dados de posto e destino são obrigatórios');
+        expect(res.status).toBe(201);
+        expect(res.body.data).toHaveProperty('total_minutos');
     });
 
     it('deve calcular e persistir previsão de ETA com sucesso utilizando o motor cognitivo Groq LPU', async () => {

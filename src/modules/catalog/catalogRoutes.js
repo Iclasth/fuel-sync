@@ -137,7 +137,7 @@ router.post(
 router.delete(
     '/fuels/:id',
     authMiddleware,
-    roleMiddleware([UserRoles.ADMIN_GERAL, UserRoles.POSTO_ADMIN]),
+    roleMiddleware([UserRoles.ADMIN_GERAL]),
     catalogController.deleteFuel
 );
 

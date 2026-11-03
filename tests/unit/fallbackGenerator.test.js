@@ -136,6 +136,24 @@ describe('Unit: AI Module - Fallback Generator', () => {
             expect(prediction.mensagem).toContain('Entregador em deslocamento direto para o local indicado');
             expect(prediction.mensagem).toContain('Previsão de chegada pontual');
         });
+
+        it('deve ignorar data inválida em horario_previsto_chegada sem interpolar a string Invalid Date', () => {
+            const metrics = {
+                tipo_fase: 'ENTREGA',
+                tempo_espera: 0,
+                tempo_preparo: 0,
+                tempo_viagem: 15,
+                total_minutos: 15,
+                tempo_formatado: '15 min',
+                tem_atraso_baseline: false,
+                horario_previsto_chegada: 'data-invalida'
+            };
+
+            const prediction = generateFallbackPrediction(metrics, null, 'EM_TRANSPORTE');
+
+            expect(prediction.mensagem).not.toContain('Invalid Date');
+            expect(prediction.mensagem).toContain('em ~15 min');
+        });
     });
 });
 

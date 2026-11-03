@@ -28,7 +28,10 @@ function generateFallbackPrediction(metrics, setbackDescription = null, orderSta
     let horaPrevista = null;
     if (metrics.horario_previsto_chegada) {
         try {
-            horaPrevista = new Date(metrics.horario_previsto_chegada).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const parsedDate = new Date(metrics.horario_previsto_chegada);
+            if (!isNaN(parsedDate.getTime())) {
+                horaPrevista = parsedDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            }
         } catch {
             horaPrevista = null;
         }

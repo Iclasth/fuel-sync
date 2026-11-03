@@ -89,11 +89,14 @@ export const ComprarCombustivelPage = () => {
   useEffect(() => {
     if (!postoSelecionado) return;
 
+    let active = true;
+
     const carregarCombustiveisDoPosto = async () => {
       setIsLoadingFuels(true);
       setMensagemErro('');
       try {
         const res = await api.get(`/api/v1/stations/${postoSelecionado}/fuels`);
+        if (!active) return;
         const fuels = Array.isArray(res.data) ? res.data : [];
 
         if (fuels.length > 0) {
@@ -111,6 +114,7 @@ export const ComprarCombustivelPage = () => {
         } else {
           // Fallback para catálogo global
           const catRes = await api.get('/api/v1/catalog/fuels');
+          if (!active) return;
           const catFuels = Array.isArray(catRes.data) ? catRes.data : [];
           const mapped = catFuels.map((f) => ({
             id: f.id,
@@ -124,21 +128,23 @@ export const ComprarCombustivelPage = () => {
           }
         }
       } catch (err) {
+        if (!active) return;
         console.error('Erro ao consultar combustíveis do posto:', err);
-        // Fallback básico
-        const defaultFuels = [
-          { id: 1, nome: 'Gasolina Comum Náutica', preco_litro: 5.89, disponivel: true },
-          { id: 2, nome: 'Diesel S10 Marítimo', preco_litro: 6.25, disponivel: true },
-          { id: 3, nome: 'Gasolina Podium / Premium', preco_litro: 7.15, disponivel: true },
-        ];
-        setCombustiveis(defaultFuels);
-        setCombustivelSelecionadoId('1');
+        setCombustiveis([]);
+        setCombustivelSelecionadoId('');
+        setMensagemErro('Tabela de preços indisponível para o posto selecionado no momento.');
       } finally {
-        setIsLoadingFuels(false);
+        if (active) {
+          setIsLoadingFuels(false);
+        }
       }
     };
 
     carregarCombustiveisDoPosto();
+
+    return () => {
+      active = false;
+    };
   }, [postoSelecionado]);
 
   // Cálculos financeiros
@@ -181,8 +187,20 @@ export const ComprarCombustivelPage = () => {
       ponto_referencia: enderecoFinal.ponto_referencia ? enderecoFinal.ponto_referencia.trim() : null,
       tipo_local: enderecoFinal.tipo_local || 'MARINA',
       instrucoes_adicionais: observacoes.trim() || null,
-      destino_latitude: Number(enderecoFinal.latitude) || -22.9205,
-      destino_longitude: Number(enderecoFinal.longitude) || -43.1729,
+      destino_latitude:
+        enderecoFinal.latitude !== null &&
+        enderecoFinal.latitude !== undefined &&
+        enderecoFinal.latitude !== '' &&
+        !isNaN(Number(enderecoFinal.latitude))
+          ? Number(enderecoFinal.latitude)
+          : -22.9205,
+      destino_longitude:
+        enderecoFinal.longitude !== null &&
+        enderecoFinal.longitude !== undefined &&
+        enderecoFinal.longitude !== '' &&
+        !isNaN(Number(enderecoFinal.longitude))
+          ? Number(enderecoFinal.longitude)
+          : -43.1729,
       itens: [
         {
           combustivel_id: Number(combSelecionado.id),

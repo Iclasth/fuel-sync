@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { EnderecosPage } from '../EnderecosPage';
@@ -119,6 +119,61 @@ describe('EnderecosPage', () => {
     await waitFor(() => {
       expect(api.delete).toHaveBeenCalledWith('/api/v1/customers/locations/5');
       expect(screen.queryByText('Ponto Antigo')).not.toBeInTheDocument();
+    });
+  });
+
+  it('mantém latitude e longitude durante digitação e desabilita botão durante envio (FE-05 & FE-06)', async () => {
+    api.get.mockResolvedValueOnce({ data: [] });
+    let resolvePost;
+    api.post.mockImplementationOnce(() => new Promise((resolve) => {
+      resolvePost = resolve;
+    }));
+
+    renderComponent();
+
+    const apelidoInput = screen.getByPlaceholderText(/Ex: Marina Santos/i);
+    const enderecoInput = screen.getByPlaceholderText(/Av\. Beira Mar/i);
+    const latInput = screen.getByPlaceholderText('-23.987654');
+    const lonInput = screen.getByPlaceholderText('-46.302145');
+
+    fireEvent.change(apelidoInput, { target: { value: 'Píer Especial' } });
+    fireEvent.change(enderecoInput, { target: { value: 'Rua das Palmeiras, 10' } });
+
+    fireEvent.change(latInput, { target: { value: '-22.500000' } });
+    fireEvent.change(lonInput, { target: { value: '-43.123456' } });
+
+    expect(latInput.value).toBe('-22.500000');
+    expect(lonInput.value).toBe('-43.123456');
+
+    const submitBtn = screen.getByRole('button', { name: /Salvar Ponto de Entrega/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Salvando\.\.\./i })).toBeDisabled();
+    });
+
+    await act(async () => {
+      resolvePost({
+        data: {
+          id: 99,
+          apelido: 'Píer Especial',
+          tipo_local: 'MARINA',
+          endereco: 'Rua das Palmeiras, 10',
+          latitude: -22.5,
+          longitude: -43.123456,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/v1/customers/locations',
+        expect.objectContaining({
+          latitude: -22.5,
+          longitude: -43.123456,
+        })
+      );
+      expect(screen.getByRole('button', { name: /Salvar Ponto de Entrega/i })).not.toBeDisabled();
     });
   });
 });

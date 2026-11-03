@@ -148,6 +148,10 @@ router.get(
  *               status:
  *                 type: string
  *                 enum: [PENDENTE, CONFIRMADO_POSTO, EM_PREPARACAO, EM_TRANSPORTE, CONCLUIDO, CANCELADO]
+ *               entregador_id:
+ *                 type: integer
+ *                 description: Identificador do entregador responsável (obrigatório para despacho quando status for EM_TRANSPORTE)
+ *                 example: 3
  *     responses:
  *       200:
  *         description: Status do pedido atualizado com sucesso

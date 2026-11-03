@@ -107,10 +107,14 @@ const createLocation = async (userId, locationData) => {
 
     // Se marcado como padrão, desmarca locais anteriores do cliente
     if (padrao) {
-        await supabase
+        const { error: unsetError } = await supabase
             .from('locais_entrega_cliente')
             .update({ padrao: false })
             .eq('cliente_id', clienteId);
+
+        if (unsetError) {
+            throw new AppError(`Erro ao desmarcar locais padrão anteriores: ${unsetError.message}`, 500);
+        }
     }
 
     const { data, error } = await supabase

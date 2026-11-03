@@ -27,6 +27,19 @@ describe('Integration: Customer Routes (/customers - Authenticated)', () => {
         });
     };
 
+    const mockAuthAdmin = () => {
+        supabase.auth.getUser.mockResolvedValue({
+            data: {
+                user: {
+                    id: 'usr-admin-1',
+                    email: 'admin@teste.com',
+                    user_metadata: { role: 'admin_geral' }
+                }
+            },
+            error: null
+        });
+    };
+
     beforeEach(() => {
         jest.clearAllMocks();
     });
@@ -124,8 +137,19 @@ describe('Integration: Customer Routes (/customers - Authenticated)', () => {
     });
 
     describe('GET /customers', () => {
-        it('TC-CUST-API-04: deve retornar lista de clientes com status 200', async () => {
+        it('TC-CUST-API-04-A: deve rejeitar com 403 se usuário for cliente comum', async () => {
             mockAuthSuccess();
+
+            const res = await request(app)
+                .get('/customers')
+                .set('Authorization', `Bearer ${validToken}`);
+
+            expect(res.status).toBe(403);
+            expect(res.body).toHaveProperty('error');
+        });
+
+        it('TC-CUST-API-04: deve retornar lista de clientes com status 200 quando for admin_geral', async () => {
+            mockAuthAdmin();
 
             supabase.from.mockReturnValueOnce({
                 select: jest.fn().mockResolvedValueOnce({
@@ -151,16 +175,27 @@ describe('Integration: Customer Routes (/customers - Authenticated)', () => {
         it('TC-CUST-API-05: deve atualizar cliente com sucesso retornando 200', async () => {
             mockAuthSuccess();
 
-            supabase.from.mockReturnValueOnce({
-                update: jest.fn().mockReturnValueOnce({
-                    eq: jest.fn().mockReturnValueOnce({
-                        select: jest.fn().mockResolvedValueOnce({
-                            data: [{ id: 1, name: 'Nome Atualizado', cpf: '52998224725' }],
-                            error: null
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValueOnce({
+                        eq: jest.fn().mockReturnValueOnce({
+                            maybeSingle: jest.fn().mockResolvedValueOnce({
+                                data: { id: 1, usuario_id: 'usr-cliente-1', name: 'Nome Original' },
+                                error: null
+                            })
                         })
                     })
                 })
-            });
+                .mockReturnValueOnce({
+                    update: jest.fn().mockReturnValueOnce({
+                        eq: jest.fn().mockReturnValueOnce({
+                            select: jest.fn().mockResolvedValueOnce({
+                                data: [{ id: 1, name: 'Nome Atualizado', cpf: '52998224725' }],
+                                error: null
+                            })
+                        })
+                    })
+                });
 
             const res = await request(app)
                 .put('/customers/1')
@@ -171,14 +206,105 @@ describe('Integration: Customer Routes (/customers - Authenticated)', () => {
             expect(res.body).toHaveProperty('name', 'Nome Atualizado');
         });
 
-        it('TC-CUST-API-06: deve retornar 404 quando cliente não for encontrado', async () => {
+        it('TC-CUST-API-05-IDOR: deve retornar 403 se um cliente tentar alterar dados de outro cliente (IDOR)', async () => {
             mockAuthSuccess();
+
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValueOnce({
+                    eq: jest.fn().mockReturnValueOnce({
+                        maybeSingle: jest.fn().mockResolvedValueOnce({
+                            data: { id: 2, usuario_id: 'usr-cliente-outro', name: 'Outro Cliente' },
+                            error: null
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .put('/customers/2')
+                .set('Authorization', `Bearer ${validToken}`)
+                .send({ name: 'Tentativa Invasora' });
+
+            expect(res.status).toBe(403);
+            expect(res.body).toHaveProperty('error');
+            expect(res.body.error).toMatch(/permissão/i);
+        });
+
+        it('TC-CUST-API-05-UUID: deve atualizar cliente com sucesso utilizando identificador UUID', async () => {
+            const uuid = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+            supabase.auth.getUser.mockResolvedValue({
+                data: {
+                    user: {
+                        id: uuid,
+                        email: 'cliente.uuid@teste.com',
+                        user_metadata: { role: 'cliente' }
+                    }
+                },
+                error: null
+            });
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValueOnce({
+                        eq: jest.fn().mockReturnValueOnce({
+                            maybeSingle: jest.fn().mockResolvedValueOnce({
+                                data: { id: 10, usuario_id: uuid, name: 'Cliente UUID Original' },
+                                error: null
+                            })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    update: jest.fn().mockReturnValueOnce({
+                        eq: jest.fn().mockReturnValueOnce({
+                            select: jest.fn().mockResolvedValueOnce({
+                                data: [{ id: 10, usuario_id: uuid, name: 'Nome UUID Atualizado', cpf: '52998224725' }],
+                                error: null
+                            })
+                        })
+                    })
+                });
+
+            const res = await request(app)
+                .put(`/customers/${uuid}`)
+                .set('Authorization', `Bearer ${validToken}`)
+                .send({ name: 'Nome UUID Atualizado' });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('name', 'Nome UUID Atualizado');
+        });
+
+        it('TC-CUST-API-05-ADMIN: deve permitir que admin_geral atualize qualquer cliente sem restrição IDOR', async () => {
+            mockAuthAdmin();
 
             supabase.from.mockReturnValueOnce({
                 update: jest.fn().mockReturnValueOnce({
                     eq: jest.fn().mockReturnValueOnce({
                         select: jest.fn().mockResolvedValueOnce({
-                            data: [],
+                            data: [{ id: 99, name: 'Cliente Atualizado por Admin', cpf: '52998224725' }],
+                            error: null
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .put('/customers/99')
+                .set('Authorization', `Bearer ${validToken}`)
+                .send({ name: 'Cliente Atualizado por Admin' });
+
+            expect(res.status).toBe(200);
+            expect(res.body).toHaveProperty('name', 'Cliente Atualizado por Admin');
+        });
+
+        it('TC-CUST-API-06: deve retornar 404 quando cliente não for encontrado', async () => {
+            mockAuthSuccess();
+
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValueOnce({
+                    eq: jest.fn().mockReturnValueOnce({
+                        maybeSingle: jest.fn().mockResolvedValueOnce({
+                            data: null,
                             error: null
                         })
                     })
@@ -196,8 +322,19 @@ describe('Integration: Customer Routes (/customers - Authenticated)', () => {
     });
 
     describe('DELETE /customers/:id', () => {
-        it('TC-CUST-API-07: deve deletar cliente com sucesso retornando 204', async () => {
+        it('TC-CUST-API-07-A: deve rejeitar com 403 se usuário for cliente comum', async () => {
             mockAuthSuccess();
+
+            const res = await request(app)
+                .delete('/customers/1')
+                .set('Authorization', `Bearer ${validToken}`);
+
+            expect(res.status).toBe(403);
+            expect(res.body).toHaveProperty('error');
+        });
+
+        it('TC-CUST-API-07: deve deletar cliente com sucesso retornando 204 quando for admin_geral', async () => {
+            mockAuthAdmin();
 
             supabase.from.mockReturnValueOnce({
                 delete: jest.fn().mockReturnValueOnce({
@@ -217,8 +354,8 @@ describe('Integration: Customer Routes (/customers - Authenticated)', () => {
             expect(res.status).toBe(204);
         });
 
-        it('TC-CUST-API-08: deve retornar 404 ao tentar deletar cliente inexistente', async () => {
-            mockAuthSuccess();
+        it('TC-CUST-API-08: deve retornar 404 ao tentar deletar cliente inexistente quando for admin_geral', async () => {
+            mockAuthAdmin();
 
             supabase.from.mockReturnValueOnce({
                 delete: jest.fn().mockReturnValueOnce({

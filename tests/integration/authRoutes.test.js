@@ -614,6 +614,79 @@ describe('Integration: Auth Routes (/api/v1/auth)', () => {
             expect(res.body.courier).toHaveProperty('posto_id', 2);
         });
 
+        it('TC-API-08-SEC: deve ignorar posto_id arbitrário enviado no payload se usuário for posto_admin', async () => {
+            supabase.auth.getUser.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'admin-uuid-1',
+                        email: 'admin@posto.com',
+                        user_metadata: { role: 'posto_admin' }
+                    }
+                },
+                error: null
+            });
+
+            supabase.auth.signUp.mockResolvedValueOnce({
+                data: {
+                    user: {
+                        id: 'courier-uuid-11',
+                        email: 'sec@entregador.com',
+                        user_metadata: { role: 'entregador', name: 'Sec Entregador' }
+                    }
+                },
+                error: null
+            });
+
+            // 1. Busca posto_administradores -> retorna posto 2
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({
+                            data: { posto_id: 2 },
+                            error: null
+                        })
+                    })
+                })
+            });
+
+            // 2. Insert perfis_usuarios
+            supabase.from.mockReturnValueOnce({
+                insert: jest.fn().mockResolvedValue({ data: null, error: null })
+            });
+
+            // 3. Insert entregadores
+            const mockCourierRow = {
+                id: 6,
+                usuario_id: 'courier-uuid-11',
+                posto_id: 2,
+                nome: 'Sec Entregador',
+                status: 'DISPONIVEL'
+            };
+            const insertEntregadoresMock = jest.fn().mockReturnValue({
+                select: jest.fn().mockResolvedValue({
+                    data: [mockCourierRow],
+                    error: null
+                })
+            });
+            supabase.from.mockReturnValueOnce({
+                insert: insertEntregadoresMock
+            });
+
+            // Payload tenta forçar posto_id: 999
+            const res = await request(app)
+                .post('/api/v1/auth/admin/create-courier')
+                .set('Authorization', 'Bearer token-do-posto')
+                .send({ ...courierPayload, email: 'sec@entregador.com', posto_id: 999 });
+
+            expect(res.status).toBe(201);
+            expect(res.body.courier).toHaveProperty('posto_id', 2);
+            expect(insertEntregadoresMock).toHaveBeenCalledWith(
+                expect.arrayContaining([
+                    expect.objectContaining({ posto_id: 2 })
+                ])
+            );
+        });
+
         it('TC-API-09: deve bloquear com 403 se cliente tentar criar entregador', async () => {
             supabase.auth.getUser.mockResolvedValueOnce({
                 data: {

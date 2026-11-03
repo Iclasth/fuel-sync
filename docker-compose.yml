@@ -11,6 +11,11 @@ services:
       - PORT=3000
       - SUPABASE_URL=${SUPABASE_URL:-https://placeholder.supabase.co}
       - SUPABASE_KEY=${SUPABASE_KEY:-placeholder-key}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL}
+      - GROQ_TIMEOUT_MS=${GROQ_TIMEOUT_MS}
+      - DATABASE_URL=${DATABASE_URL}
+      - ROUTING_TORTUOSITY_FACTOR=${ROUTING_TORTUOSITY_FACTOR}
     volumes:
       - .:/app
       - /app/node_modules

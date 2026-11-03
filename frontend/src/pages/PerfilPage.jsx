@@ -37,22 +37,22 @@ export const PerfilPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user?.id) {
+      setMensagemErro('Usuário não autenticado ou identificador inválido.');
+      return;
+    }
+
     setIsLoading(true);
     setMensagemSucesso('');
     setMensagemErro('');
 
     try {
-      // Tenta atualizar se existir customer correspondente, ou salva nas preferências locais
-      try {
-        await api.put(`/customers/${user.id}`, {
-          name: formData.nome,
-          telefone: formData.telefone,
-          endereco_padrao: formData.endereco_padrao,
-          ponto_referencia_padrao: formData.ponto_referencia_padrao,
-        });
-      } catch (_) {
-        // Fallback silencioso
-      }
+      await api.put(`/customers/${user.id}`, {
+        name: formData.nome,
+        telefone: formData.telefone,
+        endereco_padrao: formData.endereco_padrao,
+        ponto_referencia_padrao: formData.ponto_referencia_padrao,
+      });
 
       setMensagemSucesso('Dados cadastrais atualizados com sucesso!');
       setTimeout(() => setMensagemSucesso(''), 3000);

@@ -167,14 +167,23 @@ describe('Integration: Courier Routes (/api/v1/couriers)', () => {
         it('TC-CR-API-06: deve atualizar status operacional com status 200', async () => {
             mockAuthUser('entregador');
 
+            const mockCourier = { id: 1, usuario_id: 'usr-courier-1' };
             const mockUpdated = { id: 1, status: 'EM_ROTA' };
-            supabase.from.mockReturnValueOnce({
-                update: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                        })
                     })
                 })
-            });
+                .mockReturnValueOnce({
+                    update: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+                        })
+                    })
+                });
 
             const res = await request(app)
                 .patch('/api/v1/couriers/1/status')
@@ -185,8 +194,38 @@ describe('Integration: Courier Routes (/api/v1/couriers)', () => {
             expect(res.body).toHaveProperty('status', 'EM_ROTA');
         });
 
+        it('TC-CR-API-06-B: deve rejeitar com 403 se entregador tentar alterar status de outro entregador (IDOR)', async () => {
+            mockAuthUser('entregador');
+
+            const mockCourier = { id: 1, usuario_id: 'usr-courier-1' };
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .patch('/api/v1/couriers/2/status')
+                .set('Authorization', 'Bearer valid-courier-token')
+                .send({ status: 'EM_ROTA' });
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/não tem permissão para alterar dados de outro entregador/i);
+        });
+
         it('TC-CR-API-07: deve rejeitar com 400 se o status for inválido', async () => {
             mockAuthUser('entregador');
+
+            const mockCourier = { id: 1, usuario_id: 'usr-courier-1' };
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                    })
+                })
+            });
 
             const res = await request(app)
                 .patch('/api/v1/couriers/1/status')
@@ -213,19 +252,28 @@ describe('Integration: Courier Routes (/api/v1/couriers)', () => {
         it('TC-CR-API-09: deve atualizar coordenadas com status 200 quando for entregador', async () => {
             mockAuthUser('entregador');
 
+            const mockCourier = { id: 1, usuario_id: 'usr-courier-1' };
             const mockUpdated = {
                 id: 1,
                 ultima_latitude: -22.9068,
                 ultima_longitude: -43.1729,
                 ultima_posicao_em: '2026-09-10T12:00:00Z'
             };
-            supabase.from.mockReturnValueOnce({
-                update: jest.fn().mockReturnValue({
-                    eq: jest.fn().mockReturnValue({
-                        select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                        })
                     })
                 })
-            });
+                .mockReturnValueOnce({
+                    update: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            select: jest.fn().mockResolvedValue({ data: [mockUpdated], error: null })
+                        })
+                    })
+                });
 
             const res = await request(app)
                 .patch('/api/v1/couriers/1/location')
@@ -237,8 +285,38 @@ describe('Integration: Courier Routes (/api/v1/couriers)', () => {
             expect(res.body).toHaveProperty('ultima_longitude', -43.1729);
         });
 
+        it('TC-CR-API-09-B: deve rejeitar com 403 se entregador tentar atualizar localização de outro entregador (IDOR)', async () => {
+            mockAuthUser('entregador');
+
+            const mockCourier = { id: 1, usuario_id: 'usr-courier-1' };
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .patch('/api/v1/couriers/2/location')
+                .set('Authorization', 'Bearer valid-courier-token')
+                .send({ latitude: -22.9068, longitude: -43.1729 });
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/não tem permissão para atualizar dados de outro entregador/i);
+        });
+
         it('TC-CR-API-10: deve rejeitar com 400 se as coordenadas forem inválidas', async () => {
             mockAuthUser('entregador');
+
+            const mockCourier = { id: 1, usuario_id: 'usr-courier-1' };
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        single: jest.fn().mockResolvedValue({ data: mockCourier, error: null })
+                    })
+                })
+            });
 
             const res = await request(app)
                 .patch('/api/v1/couriers/1/location')

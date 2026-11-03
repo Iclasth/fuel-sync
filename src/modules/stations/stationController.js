@@ -116,6 +116,9 @@ const getStationFuelHistory = async (req, res, next) => {
 const getStationAdmins = async (req, res, next) => {
     try {
         const { stationId } = req.params;
+        if (req.user && req.user.role === 'posto_admin') {
+            await stationService.validateStationAccess(req.user, Number(stationId));
+        }
         const admins = await stationService.getStationAdmins(Number(stationId));
         return res.status(200).json(admins);
     } catch (err) {

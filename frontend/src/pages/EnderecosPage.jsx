@@ -28,6 +28,7 @@ export const EnderecosPage = () => {
     longitude: -46.6333,
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
   const [mensagemErro, setMensagemErro] = useState('');
 
@@ -62,7 +63,7 @@ export const EnderecosPage = () => {
     const { name, value } = e.target;
     setNovoEndereco((prev) => ({
       ...prev,
-      [name]: name === 'latitude' || name === 'longitude' ? parseFloat(value) || value : value,
+      [name]: value,
     }));
   };
 
@@ -92,6 +93,7 @@ export const EnderecosPage = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const res = await api.post('/api/v1/customers/locations', {
         apelido: novoEndereco.apelido.trim(),
@@ -117,6 +119,8 @@ export const EnderecosPage = () => {
     } catch (err) {
       const apiMsg = err.response?.data?.error || 'Erro ao cadastrar ponto de entrega.';
       setMensagemErro(apiMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -299,10 +303,20 @@ export const EnderecosPage = () => {
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>Salvar Ponto de Entrega</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4" />
+                    <span>Salvar Ponto de Entrega</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

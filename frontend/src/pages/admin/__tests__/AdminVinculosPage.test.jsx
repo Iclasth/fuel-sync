@@ -114,9 +114,11 @@ describe('AdminVinculosPage', () => {
     });
 
     // Verifica exibição do gestor já vinculado com nome e email na tabela
-    expect(screen.getAllByText('Ricardo Silva').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('ricardo@posto.com').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Autorizado')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText('Ricardo Silva').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('ricardo@posto.com').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Autorizado')).toBeInTheDocument();
+    });
   });
 
   it('vincula um gestor selecionado na lista suspensa sem necessidade de colar UUID', async () => {

@@ -139,4 +139,19 @@ describe('AuthContext', () => {
     expect(result.current.user.role).toBe('cliente');
     expect(JSON.parse(localStorage.getItem('fuel_sync_user')).role).toBe('cliente');
   });
+
+  it('preserva a referência do objeto value via useMemo em re-renderizações sem alteração de estado (FE-08)', () => {
+    let renders = 0;
+    const { result, rerender } = renderHook(() => {
+      renders++;
+      return useAuth();
+    }, { wrapper });
+
+    const firstValue = result.current;
+    rerender();
+    const secondValue = result.current;
+
+    expect(renders).toBe(2);
+    expect(firstValue).toBe(secondValue);
+  });
 });
