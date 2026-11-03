@@ -420,4 +420,63 @@ describe('Integration: Station Routes (/api/v1/stations)', () => {
             expect(res.body).toEqual(mockHistory);
         });
     });
+
+    describe('GET /api/v1/stations/:stationId/admins', () => {
+        it('TC-ST-ADMINS-01: deve bloquear com 403 se posto_admin tentar listar admins de outro posto', async () => {
+            mockAuthUser('posto_admin', 'usr-posto-1');
+
+            // Falha na checagem de vínculo em posto_administradores
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } })
+                        })
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .get('/api/v1/stations/99/admins')
+                .set('Authorization', 'Bearer valid-token');
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toMatch(/não administra este posto/i);
+        });
+
+        it('TC-ST-ADMINS-02: deve permitir consulta se posto_admin for vinculado ao posto', async () => {
+            mockAuthUser('posto_admin', 'usr-posto-1');
+
+            // 1. Validação de vínculo bem-sucedida
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            eq: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({
+                                    data: { user_id: 'usr-posto-1', posto_id: 1 },
+                                    error: null
+                                })
+                            })
+                        })
+                    })
+                })
+                // 2. Consulta de admins
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [{ user_id: 'usr-posto-1', posto_id: 1 }],
+                            error: null
+                        })
+                    })
+                });
+
+            const res = await request(app)
+                .get('/api/v1/stations/1/admins')
+                .set('Authorization', 'Bearer valid-token');
+
+            expect(res.status).toBe(200);
+            expect(Array.isArray(res.body)).toBe(true);
+        });
+    });
 });

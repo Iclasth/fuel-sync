@@ -197,21 +197,21 @@ const createCourier = async (adminUser, courierData) => {
         stationId
     } = courierData;
 
-    // Determina o posto de vinculação do entregador
-    let targetPostoId = Number(posto_id || stationId) || null;
-    if (!targetPostoId && adminUser) {
-        if (adminUser.role === 'posto_admin') {
-            try {
-                const { data: link } = await supabase
-                    .from('posto_administradores')
-                    .select('posto_id')
-                    .eq('user_id', adminUser.id)
-                    .single();
-                if (link && link.posto_id) {
-                    targetPostoId = link.posto_id;
-                }
-            } catch (_) {}
-        }
+    // Determina o posto de vinculação do entregador (forçado para posto_admin para impedir spoofing de posto)
+    let targetPostoId = null;
+    if (adminUser && adminUser.role === 'posto_admin') {
+        try {
+            const { data: link } = await supabase
+                .from('posto_administradores')
+                .select('posto_id')
+                .eq('user_id', adminUser.id)
+                .single();
+            if (link && link.posto_id) {
+                targetPostoId = link.posto_id;
+            }
+        } catch (_) {}
+    } else {
+        targetPostoId = Number(posto_id || stationId) || null;
     }
 
     if (!targetPostoId) {

@@ -292,6 +292,21 @@ describe('Unit: AI Module - ETA Calculator', () => {
             expect(result.tem_atraso_baseline).toBe(true);
             expect(result.delta_atraso_minutos).toBeGreaterThan(5);
         });
+
+        it('deve tolerar baselineEta com string inválida sem lançar RangeError e retornar baseline_eta como null', () => {
+            const result = calculateBreakdownTimes({
+                originLat: baseStation.latitude,
+                originLon: baseStation.longitude,
+                destLat: condoDest.latitude,
+                destLon: condoDest.longitude,
+                prepTimeStation: 15,
+                orderStatus: 'PENDENTE',
+                baselineEta: 'invalid-time-string'
+            });
+
+            expect(result.baseline_eta).toBeNull();
+            expect(result.tem_atraso_baseline).toBe(false);
+        });
     });
 });
 

@@ -12,7 +12,7 @@ async function predictEta(req, res, next) {
             setbackDescription
         } = req.body;
 
-        if (!station || !destination) {
+        if (!orderId && (!station || !destination)) {
             return res.status(400).json({
                 status: 'fail',
                 message: 'Dados de posto e destino são obrigatórios para o cálculo de ETA.'

@@ -203,7 +203,17 @@ describe('Integration: Catalog Routes (/api/v1/catalog)', () => {
             expect(res.status).toBe(403);
         });
 
-        it('TC-CAT-API-10: deve remover combustível com status 200 quando for admin_geral ou posto_admin', async () => {
+        it('TC-CAT-API-09-B: deve rejeitar com 403 se usuário for posto_admin ao tentar deletar combustível global', async () => {
+            mockAuthUser('posto_admin');
+
+            const res = await request(app)
+                .delete('/api/v1/catalog/fuels/1')
+                .set('Authorization', 'Bearer valid-posto-admin-token');
+
+            expect(res.status).toBe(403);
+        });
+
+        it('TC-CAT-API-10: deve remover combustível com status 200 quando for admin_geral', async () => {
             mockAuthUser('admin_geral');
 
             const mockDeleted = { id: 1, nome: 'Gasolina Comum', unidade_medida: 'LITROS' };

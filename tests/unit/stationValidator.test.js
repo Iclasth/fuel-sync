@@ -41,4 +41,14 @@ describe('Unit: Station Validator (src/modules/stations/stationValidator)', () =
         expect(() => validateUpdateStation({ tempo_medio_preparo_minutos: 20 })).not.toThrow();
         expect(() => validateUpdateStation({ telefone: '21977776666' })).not.toThrow();
     });
+
+    it('TC-ST-VAL-07: deve aprovar atualização parcial apenas com latitude ou apenas com longitude sem gerar NaN', () => {
+        const updateLat = validateUpdateStation({ latitude: -23.000371 });
+        expect(updateLat.latitude).toBe(-23.000371);
+        expect(updateLat.longitude).toBeUndefined();
+
+        const updateLon = validateUpdateStation({ longitude: -43.365894 });
+        expect(updateLon.longitude).toBe(-43.365894);
+        expect(updateLon.latitude).toBeUndefined();
+    });
 });

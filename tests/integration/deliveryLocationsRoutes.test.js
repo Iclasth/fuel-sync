@@ -118,6 +118,41 @@ describe('Integration: Customer Delivery Locations Routes (/api/v1/customers/loc
             expect(res.body.apelido).toBe('Minha Poita');
         });
 
+        it('deve retornar 500 se falhar ao desmarcar locais padrão anteriores ao cadastrar local com padrao=true', async () => {
+            mockAuthUser('usr-cli-1');
+
+            // 1. Mock getClienteIdByUserId
+            supabase.from.mockReturnValueOnce({
+                select: jest.fn().mockReturnThis(),
+                eq: jest.fn().mockReturnThis(),
+                maybeSingle: jest.fn().mockResolvedValue({ data: { id: 1 }, error: null })
+            });
+
+            // 2. Mock update padrao=false com erro
+            supabase.from.mockReturnValueOnce({
+                update: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({
+                        error: { message: 'Database connection failed during unset padrao' }
+                    })
+                })
+            });
+
+            const res = await request(app)
+                .post('/api/v1/customers/locations')
+                .set('Authorization', 'Bearer valid-token')
+                .send({
+                    apelido: 'Minha Poita Padrão',
+                    tipo_local: 'MARINA',
+                    endereco: 'Marina da Glória',
+                    latitude: -22.92,
+                    longitude: -43.17,
+                    padrao: true
+                });
+
+            expect(res.status).toBe(500);
+            expect(res.body.error).toMatch(/desmarcar locais padrão anteriores/i);
+        });
+
         it('deve rejeitar se faltar endereco com status 400', async () => {
             mockAuthUser('usr-cli-1');
 

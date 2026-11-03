@@ -84,13 +84,25 @@ function validateUpdateStation(payload = {}) {
         updateData.endereco = String(payload.endereco).trim();
     }
 
-    if (payload.latitude !== undefined || payload.longitude !== undefined) {
+    if (payload.latitude !== undefined && payload.longitude !== undefined) {
         const coords = validateCoordinates({
             latitude: payload.latitude,
             longitude: payload.longitude
         });
         updateData.latitude = coords.latitude;
         updateData.longitude = coords.longitude;
+    } else if (payload.latitude !== undefined) {
+        const lat = Number(payload.latitude);
+        if (isNaN(lat) || lat < -90 || lat > 90) {
+            throw new AppError('A latitude deve ser um número válido entre -90 e 90 graus.', 400);
+        }
+        updateData.latitude = lat;
+    } else if (payload.longitude !== undefined) {
+        const lon = Number(payload.longitude);
+        if (isNaN(lon) || lon < -180 || lon > 180) {
+            throw new AppError('A longitude deve ser um número válido entre -180 e 180 graus.', 400);
+        }
+        updateData.longitude = lon;
     }
 
     if (payload.tempo_medio_preparo_minutos !== undefined) {

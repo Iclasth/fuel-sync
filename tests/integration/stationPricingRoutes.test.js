@@ -61,11 +61,26 @@ describe('Integration: Station Pricing & Admin Assignment Routes', () => {
         mockUser('posto_admin');
         const mockLinks = [{ id: 'link-1', posto_id: 1, user_id: 'usr-posto-admin-1' }];
 
-        supabase.from.mockReturnValueOnce({
-            select: jest.fn().mockReturnValue({
-                eq: jest.fn().mockResolvedValue({ data: mockLinks, error: null })
+        // 1. Validação de acesso em posto_administradores (SEC-05)
+        supabase.from
+            .mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({
+                                data: { user_id: 'usr-posto-admin-1', posto_id: 1 },
+                                error: null
+                            })
+                        })
+                    })
+                })
             })
-        });
+            // 2. Consulta de admins vinculados
+            .mockReturnValueOnce({
+                select: jest.fn().mockReturnValue({
+                    eq: jest.fn().mockResolvedValue({ data: mockLinks, error: null })
+                })
+            });
 
         const res = await request(app)
             .get('/api/v1/stations/1/admins')

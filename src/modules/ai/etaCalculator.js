@@ -186,7 +186,11 @@ function calculateBreakdownTimes({
         total_minutos: totalMinutes,
         tempo_formatado: formatDurationHoursMinutes(totalMinutes),
         horario_previsto_chegada: estimatedArrival.toISOString(),
-        baseline_eta: baselineEta ? new Date(baselineEta).toISOString() : null,
+        baseline_eta: (() => {
+            if (!baselineEta) return null;
+            const d = new Date(baselineEta);
+            return !isNaN(d.getTime()) ? d.toISOString() : null;
+        })(),
         delta_atraso_minutos: deltaAtrasoMinutos,
         tem_atraso_baseline: temAtrasoBaseline
     };
