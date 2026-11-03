@@ -28,18 +28,13 @@ async function runMigrations() {
     const dbUrl = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL;
 
     if (!dbUrl) {
-        console.warn(
-            '[FuelSync Migration Runner] AVISO: Nenhuma variável DATABASE_URL encontrada no .env.'
+        console.error(
+            '[FuelSync Migration Runner] ERRO: Nenhuma variável de conexão (DATABASE_URL ou SUPABASE_DB_URL) encontrada no ambiente.'
         );
-        console.log(
-            '[FuelSync Migration Runner] Para aplicar via psql diretamente no seu banco Supabase/PostgreSQL:'
+        console.error(
+            '[FuelSync Migration Runner] Configure a variável DATABASE_URL (ex: postgresql://usuario:senha@host:5432/database) no seu arquivo .env para executar as migrações.'
         );
-        files.forEach((file) => {
-            const fullPath = path.join(MIGRATIONS_DIR, file);
-            console.log(`  psql "$DATABASE_URL" -f "${fullPath}"`);
-        });
-        console.log('[FuelSync Migration Runner] Validação estática dos scripts concluída com sucesso.');
-        return;
+        process.exit(1);
     }
 
     for (const file of files) {
