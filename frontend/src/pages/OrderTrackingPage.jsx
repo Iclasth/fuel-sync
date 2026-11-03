@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import {
   Clock,
@@ -19,6 +19,9 @@ import {
 } from 'lucide-react';
 import AppLayout from '../components/layout/AppLayout';
 import api from '../services/api';
+import TrackingMap from '../components/tracking/TrackingMap';
+import AiOperationalCard from '../components/tracking/AiOperationalCard';
+import SafetyGuidelinesCard from '../components/tracking/SafetyGuidelinesCard';
 
 const ORDER_STATUS_CONFIG = {
   PENDENTE: {
@@ -120,14 +123,24 @@ export const OrderTrackingPage = () => {
   const [aiPrediction, setAiPrediction] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  const lastLoadedOrderIdRef = useRef(null);
+  const lastAiPredictionKeyRef = useRef(null);
+
   const fetchAiPrediction = async (order) => {
     if (!order || order.status === 'CONCLUIDO' || order.status === 'CANCELADO') {
+      lastAiPredictionKeyRef.current = null;
       setAiPrediction(null);
+      return;
+    }
+
+    const aiKey = `${order.id}_${order.status}_${order.posto_id || order.posto?.id}_${order.destino_latitude}_${order.destino_longitude}`;
+    if (lastAiPredictionKeyRef.current === aiKey) {
       return;
     }
 
     try {
       setIsAiLoading(true);
+      lastAiPredictionKeyRef.current = aiKey;
 
       // Garante os dados do posto a partir do pedido ou consulta direta
       let stationData = order.posto;
@@ -140,19 +153,23 @@ export const OrderTrackingPage = () => {
         } catch (_) {}
       }
 
-      const stLat = stationData?.latitude !== undefined && stationData?.latitude !== null
-        ? Number(stationData.latitude)
-        : null;
-      const stLon = stationData?.longitude !== undefined && stationData?.longitude !== null
-        ? Number(stationData.longitude)
-        : null;
+      const stLat =
+        stationData?.latitude !== undefined && stationData?.latitude !== null
+          ? Number(stationData.latitude)
+          : null;
+      const stLon =
+        stationData?.longitude !== undefined && stationData?.longitude !== null
+          ? Number(stationData.longitude)
+          : null;
 
-      const destLat = order.destino_latitude !== undefined && order.destino_latitude !== null
-        ? Number(order.destino_latitude)
-        : null;
-      const destLon = order.destino_longitude !== undefined && order.destino_longitude !== null
-        ? Number(order.destino_longitude)
-        : null;
+      const destLat =
+        order.destino_latitude !== undefined && order.destino_latitude !== null
+          ? Number(order.destino_latitude)
+          : null;
+      const destLon =
+        order.destino_longitude !== undefined && order.destino_longitude !== null
+          ? Number(order.destino_longitude)
+          : null;
 
       // Se coordenadas não estiverem disponíveis, não envia fallbacks arbitrários
       if (stLat === null || stLon === null || destLat === null || destLon === null) {
@@ -183,13 +200,14 @@ export const OrderTrackingPage = () => {
         setAiPrediction(res.data.data);
       }
     } catch (_) {
+      lastAiPredictionKeyRef.current = null;
       // Ignora erro para não interromper a interface
     } finally {
       setIsAiLoading(false);
     }
   };
 
-  // Carrega lista de pedidos e pedido ativo
+  // Carrega detalhes do pedido ativo
   const fetchOrderDetails = async (id) => {
     try {
       setIsLoading(true);
@@ -207,33 +225,47 @@ export const OrderTrackingPage = () => {
     }
   };
 
+  // Efeito 1: Carrega lista de pedidos apenas na montagem
   useEffect(() => {
+    let isCancelled = false;
+
     const carregarPedidos = async () => {
       try {
-        setIsLoading(true);
         const res = await api.get('/api/v1/orders');
+        if (isCancelled) return;
         const list = Array.isArray(res.data) ? res.data : [];
         setOrders(list);
 
-        if (queryOrderId) {
-          await fetchOrderDetails(queryOrderId);
-        } else if (list.length > 0) {
-          // Seleciona o primeiro pedido (mais recente)
-          const targetId = list[0].id;
-          setSearchParams({ orderId: String(targetId) });
-          await fetchOrderDetails(targetId);
-        } else {
+        if (!queryOrderId && list.length > 0) {
+          setSearchParams({ orderId: String(list[0].id) }, { replace: true });
+        } else if (list.length === 0) {
           setActiveOrder(null);
+          setIsLoading(false);
         }
       } catch (err) {
-        console.error('Erro ao listar pedidos:', err);
-        setErro('Erro ao consultar seus pedidos ativos.');
-      } finally {
-        setIsLoading(false);
+        if (!isCancelled) {
+          console.error('Erro ao listar pedidos:', err);
+          setErro('Erro ao consultar seus pedidos ativos.');
+          setIsLoading(false);
+        }
       }
     };
 
     carregarPedidos();
+
+    return () => {
+      isCancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Efeito 2: Carrega detalhes do pedido ativo quando queryOrderId mudar
+  useEffect(() => {
+    if (!queryOrderId) return;
+    if (lastLoadedOrderIdRef.current === String(queryOrderId)) return;
+
+    lastLoadedOrderIdRef.current = String(queryOrderId);
+    fetchOrderDetails(queryOrderId);
   }, [queryOrderId]);
 
   const handleSelectOrder = (id) => {
@@ -256,6 +288,7 @@ export const OrderTrackingPage = () => {
       await api.post(`/api/v1/orders/${activeOrder.id}/cancel`, {
         motivo: 'Cancelamento solicitado pelo cliente via interface web.',
       });
+      lastAiPredictionKeyRef.current = null;
       setMensagemSucesso('Pedido cancelado com sucesso.');
       // Atualiza os dados do pedido ativo
       await fetchOrderDetails(activeOrder.id);
@@ -397,7 +430,7 @@ export const OrderTrackingPage = () => {
                 </div>
               </div>
 
-              {/* Botão de Cancelamento */}
+              {/* Botão de Cancelamento: Visível SOMENTE quando status === 'PENDENTE' */}
               {canCancel && (
                 <div className="shrink-0">
                   <button
@@ -428,7 +461,7 @@ export const OrderTrackingPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="py-4">
+              <div className="py-2">
                 <div className="hidden sm:flex items-center justify-between relative">
                   <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-gray-200 -translate-y-1/2 z-0" />
                   {LOGISTIC_STEPS.map((step, idx) => {
@@ -497,166 +530,140 @@ export const OrderTrackingPage = () => {
               </div>
             )}
 
-            {/* Dados do Entregador Responsável */}
-            {(activeOrder.entregador || activeOrder.entregador_id) && (
-              <div className="p-4 bg-sky-50 border border-sky-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                    <Truck className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider block">
-                      Entregador Responsável
-                    </span>
-                    <h4 className="text-sm font-bold text-gray-900">
-                      {activeOrder.entregador?.nome || `Entregador ID #${activeOrder.entregador_id}`}
-                    </h4>
-                    <p className="text-xs text-gray-600">
-                      {activeOrder.entregador?.veiculo_descricao || 'Veículo homologado'}
-                      {activeOrder.entregador?.placa ? ` • Placa: ${activeOrder.entregador.placa}` : ''}
-                    </p>
-                  </div>
-                </div>
+            {/* Grid Responsivo: Principal (7 cols) e Lateral (5 cols) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+              {/* Coluna Principal */}
+              <div className="lg:col-span-7 space-y-6">
+                {/* 1. Mapa de Rastreamento */}
+                <TrackingMap
+                  order={activeOrder}
+                  aiPrediction={aiPrediction}
+                  station={activeOrder.posto}
+                  destination={{
+                    latitude: activeOrder.destino_latitude,
+                    longitude: activeOrder.destino_longitude,
+                    tipo_local: activeOrder.tipo_local,
+                  }}
+                  courier={activeOrder.entregador}
+                />
 
-                {activeOrder.entregador?.telefone && (
-                  <div className="sm:text-right text-xs">
-                    <span className="text-gray-500 block mb-0.5">Contato do Operador</span>
-                    <a
-                      href={`tel:${activeOrder.entregador.telefone}`}
-                      className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:text-sky-900 underline"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>{activeOrder.entregador.telefone}</span>
-                    </a>
+                {/* 2. Card do Entregador Responsável */}
+                {(activeOrder.entregador || activeOrder.entregador_id) && (
+                  <div className="p-4 bg-sky-50 border border-sky-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        <Truck className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-semibold text-sky-800 uppercase tracking-wider block">
+                          Entregador Responsável
+                        </span>
+                        <h4 className="text-sm font-bold text-gray-900">
+                          {activeOrder.entregador?.nome || `Entregador ID #${activeOrder.entregador_id}`}
+                        </h4>
+                        <p className="text-xs text-gray-600">
+                          {activeOrder.entregador?.veiculo_descricao || 'Veículo homologado'}
+                          {activeOrder.entregador?.placa ? ` • Placa: ${activeOrder.entregador.placa}` : ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    {activeOrder.entregador?.telefone && (
+                      <div className="sm:text-right text-xs">
+                        <span className="text-gray-500 block mb-0.5">Contato do Operador</span>
+                        <a
+                          href={`tel:${activeOrder.entregador.telefone}`}
+                          className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:text-sky-900 underline"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                          <span>{activeOrder.entregador.telefone}</span>
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* Descrição do Status e Telemetria IA */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
-                  <Radio className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Situação Atual da Operação</span>
-                </h3>
-                <p className="text-sm font-medium text-gray-900">{statusInfo.description}</p>
-                {!canCancel && !isCancelled && (
-                  <p className="text-[11px] text-gray-500 mt-2">
-                    * Cancelamento desabilitado após o despacho do posto.
-                  </p>
-                )}
-              </div>
-
-              <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4">
-                <div className="flex items-center justify-between mb-1.5">
-                  <h3 className="text-xs font-semibold text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-blue-600" />
-                    <span>{status === 'PENDENTE' ? 'ESTIMATIVA DE CONFIRMAÇÃO' : 'ESTIMATIVA DE ENTREGA'}</span>
+                {/* 3. Situação Atual da Operação */}
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Situação Atual da Operação</span>
                   </h3>
-                  {aiPrediction?.fila_pedidos !== undefined && Number(aiPrediction.fila_pedidos) > 0 ? (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800">
-                      {status === 'PENDENTE'
-                        ? `${aiPrediction.fila_pedidos} na fila de análise`
-                        : `${aiPrediction.fila_pedidos} na fila da base`}
-                    </span>
-                  ) : aiPrediction?.confianca ? (
-                    null
-                  ) : null}
+                  <p className="text-sm font-medium text-gray-900">{statusInfo.description}</p>
+                  {!canCancel && !isCancelled && (
+                    <p className="text-[11px] text-gray-500 mt-2">
+                      * Cancelamento desabilitado após o despacho do posto.
+                    </p>
+                  )}
                 </div>
 
-                {isAiLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-blue-700 py-1">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
-                    <span>Calculando estimativa de {status === 'PENDENTE' ? 'confirmação' : 'entrega'}...</span>
+                {/* 4. Itens do Pedido e Resumo Financeiro */}
+                {activeOrder.itens_pedido && activeOrder.itens_pedido.length > 0 && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
+                      Itens e Volumes Solicitados
+                    </h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
+                            <th className="py-2.5 px-3">Item / Combustível</th>
+                            <th className="py-2.5 px-3 text-right">Volume</th>
+                            <th className="py-2.5 px-3 text-right">Preço Unitário</th>
+                            <th className="py-2.5 px-3 text-right">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {activeOrder.itens_pedido.map((item, index) => (
+                            <tr key={item.id || index}>
+                              <td className="py-2.5 px-3 text-gray-900 font-medium">
+                                Combustível #{item.combustivel_id}
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-gray-700 font-mono">
+                                {Number(item.quantidade_litros).toFixed(0)} L
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-gray-700 font-mono">
+                                R$ {Number(item.valor_unitario).toFixed(2)}
+                              </td>
+                              <td className="py-2.5 px-3 text-right text-gray-900 font-semibold font-mono">
+                                R$ {Number(item.subtotal || item.quantidade_litros * item.valor_unitario).toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="border-t border-gray-200 font-bold bg-gray-50 text-gray-900">
+                            <td colSpan={3} className="py-3 px-3 text-right uppercase text-xs">
+                              Valor Total:
+                            </td>
+                            <td className="py-3 px-3 text-right font-mono text-base">
+                              R$ {Number(activeOrder.valor_total).toFixed(2)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
                   </div>
-                ) : aiPrediction ? (
-                  <div className="space-y-1.5">
-                    <p className="text-sm font-bold text-blue-950">
-                      {status === 'PENDENTE' ? 'Confirmação estimada' : 'Chegada estimada'}: {formatEtaTimeDisplay(aiPrediction)}
-                    </p>
-                    <p className="text-xs text-blue-800 leading-relaxed">
-                      {aiPrediction.mensagem || aiPrediction.mensagem_humanizada}
-                    </p>
-                    {aiPrediction.tem_atraso_baseline ? (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Aviso: variação de ~{aiPrediction.delta_atraso_minutos || 0} min em relação ao horário acordado na confirmação</span>
-                      </div>
-                    ) : aiPrediction.risco_atraso ? (
-                      <div className="flex items-center gap-1.5 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 mt-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>Atenção: {aiPrediction.motivo_risco || 'Possível variação na rota'}</span>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-sm font-medium text-blue-950">
-                      {status === 'CONCLUIDO'
-                        ? 'Operação finalizada com sucesso.'
-                        : isCancelled
-                        ? 'Despacho encerrado.'
-                        : status === 'PENDENTE'
-                        ? 'Estimativa de aceite pelo posto: ~5 a 15 minutos.'
-                        : 'Estimativa de entrega: ~35 a 50 minutos.'}
-                    </p>
-                    <p className="text-xs text-blue-700 mt-1">
-                      Monitoramento contínuo do percurso e vazão de abastecimento em tempo real.
-                    </p>
-                  </>
                 )}
+              </div>
+
+              {/* Coluna Lateral */}
+              <div className="lg:col-span-5 space-y-6">
+                {/* 1. Painel de IA Operacional */}
+                <AiOperationalCard
+                  aiPrediction={aiPrediction}
+                  status={activeOrder.status}
+                  isLoading={isAiLoading}
+                  formatEtaDisplay={formatEtaTimeDisplay}
+                />
+
+                {/* 2. Diretrizes de Segurança */}
+                <SafetyGuidelinesCard
+                  aiPrediction={aiPrediction}
+                  order={activeOrder}
+                />
               </div>
             </div>
-
-            {/* Itens do Pedido e Resumo Financeiro */}
-            {activeOrder.itens_pedido && activeOrder.itens_pedido.length > 0 && (
-              <div className="pt-4 border-t border-gray-100">
-                <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-3">
-                  Itens e Volumes Solicitados
-                </h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm border-collapse">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
-                        <th className="py-2.5 px-3">Item / Combustível</th>
-                        <th className="py-2.5 px-3 text-right">Volume</th>
-                        <th className="py-2.5 px-3 text-right">Preço Unitário</th>
-                        <th className="py-2.5 px-3 text-right">Subtotal</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {activeOrder.itens_pedido.map((item, index) => (
-                        <tr key={item.id || index}>
-                          <td className="py-2.5 px-3 text-gray-900 font-medium">
-                            Combustível #{item.combustivel_id}
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-gray-700 font-mono">
-                            {Number(item.quantidade_litros).toFixed(0)} L
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-gray-700 font-mono">
-                            R$ {Number(item.valor_unitario).toFixed(2)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-gray-900 font-semibold font-mono">
-                            R$ {Number(item.subtotal || item.quantidade_litros * item.valor_unitario).toFixed(2)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="border-t border-gray-200 font-bold bg-gray-50 text-gray-900">
-                        <td colSpan={3} className="py-3 px-3 text-right uppercase text-xs">
-                          Valor Total:
-                        </td>
-                        <td className="py-3 px-3 text-right font-mono text-base">
-                          R$ {Number(activeOrder.valor_total).toFixed(2)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
