@@ -92,6 +92,7 @@ Antes de iniciar, certifique-se de possuir instalado em seu ambiente:
 - **npm**: Versão 10.x ou superior
 - **Docker e Docker Compose** (caso opte pela execução conteinerizada)
 - **Instância do Supabase** (projeto ativo no Supabase ou PostgreSQL local compatível)
+- **psql**: PostgreSQL Client CLI (necessário para execução das migrações via runner local)
 - **Chave de API da Groq Cloud** (obtida gratuitamente em [console.groq.com](https://console.groq.com))
 
 ---
@@ -136,6 +137,7 @@ As tabelas e políticas de banco de dados estão versionadas na pasta `database/
 5. `005_order_courier_assignment.sql`: Suporte ao vínculo e obrigatoriedade de entregadores nos pedidos despachados.
 6. `006_ai_predictions_order_support.sql`: Coluna `pedido_id` e metadados para previsões por pedido na tabela `previsoes_ia`.
 7. `007_order_baseline_eta.sql`: Campos `horario_previsto_entrega`, `tempo_estimado_entrega_minutos` e índice composto por posto e status.
+8. `008_sync_clientes_on_auth_user.sql`: Gatilho de sincronização redundante entre Supabase Auth (`auth.users`), perfis de usuário e clientes.
 
 ### Como aplicar as migrações
 
@@ -146,7 +148,7 @@ As tabelas e políticas de banco de dados estão versionadas na pasta `database/
   ```
 
 - **Opção B (Via Console do Supabase)**:
-  Copie o conteúdo dos scripts SQL em ordem sequencial (`001` até `007`) e execute-os diretamente no **SQL Editor** do seu painel do Supabase.
+  Copie o conteúdo dos scripts SQL em ordem sequencial (`001` até `008`) e execute-os diretamente no **SQL Editor** do seu painel do Supabase.
 
 ---
 
@@ -246,6 +248,7 @@ A documentação interativa completa de todos os endpoints RESTful está acessí
 Principais grupos de rotas documentados:
 - `/api/v1/auth`: Cadastro, login, renovação silenciosa de tokens e dados do perfil autenticado.
 - `/api/v1/customers`: Cadastro, consulta e gestão de dados do cliente solicitante.
+- `/api/v1/users`: Consulta, listagem e gestão administrativa de usuários e perfis de acesso (RBAC).
 - `/api/v1/stations`: Cadastro de postos, parametrização de localização e tempo médio de preparo.
 - `/api/v1/catalog`: Catálogo de combustíveis disponíveis e definição de tabelas de preços por posto.
 - `/api/v1/couriers`: Cadastro de condutores/embarcações, status operacional e disponibilidade de frota.
@@ -259,7 +262,7 @@ Principais grupos de rotas documentados:
 ```plaintext
 fuel-sync/
 ├── database/
-│   └── migrations/               # Scripts DDL sequenciais do banco de dados (001 a 007)
+│   └── migrations/               # Scripts DDL sequenciais do banco de dados (001 a 008)
 ├── frontend/
 │   ├── public/                   # Favicons e ativos públicos
 │   └── src/
@@ -283,7 +286,8 @@ fuel-sync/
 │       ├── couriers/             # Gestão de entregadores e frotas de distribuição
 │       ├── customers/            # Endereços e dados de clientes
 │       ├── orders/               # Máquina de estados de pedidos e despacho
-│       └── stations/             # Gestão e telemetria de bases de abastecimento
+│       ├── stations/             # Gestão e telemetria de bases de abastecimento
+│       └── users/                # Listagem e atualização de perfis de usuários (Admin)
 ├── tests/
 │   ├── integration/              # Testes de integração de endpoints REST
 │   └── unit/                     # Testes unitários de regras de negócio e validadores
