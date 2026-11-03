@@ -29,11 +29,51 @@ const getCustomers = async () => {
     return data;
 };
 
-const updateCustomer = async (customerId, updatedData) => {
+const updateCustomer = async (customerId, updatedData, user = null) => {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
+    const targetColumn = isUuid ? 'usuario_id' : 'id';
+    const targetValue = isUuid ? customerId : Number(customerId);
+
+    if (user && user.role !== 'admin_geral') {
+        const query = supabase
+            .from('clientes')
+            .select('*')
+            .eq(targetColumn, targetValue);
+
+        let clienteRecord = null;
+        let fetchError = null;
+
+        if (typeof query.maybeSingle === 'function') {
+            const res = await query.maybeSingle();
+            clienteRecord = res.data;
+            fetchError = res.error;
+        } else if (typeof query.single === 'function') {
+            const res = await query.single();
+            clienteRecord = res.data;
+            fetchError = res.error;
+        } else {
+            const res = await query;
+            fetchError = res?.error;
+            clienteRecord = res?.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
+        }
+
+        if (fetchError) {
+            throw new AppError(`Erro ao consultar cliente: ${fetchError.message}`, 500);
+        }
+
+        if (!clienteRecord) {
+            throw new AppError('Cliente não encontrado.', 404);
+        }
+
+        if (clienteRecord.usuario_id !== user.id) {
+            throw new AppError('Acesso negado. Você não tem permissão para alterar dados de outro cliente.', 403);
+        }
+    }
+
     const { data, error } = await supabase
         .from('clientes')
         .update(updatedData)
-        .eq('id', customerId)
+        .eq(targetColumn, targetValue)
         .select();
 
     if (error) {

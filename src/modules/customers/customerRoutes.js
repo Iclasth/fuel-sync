@@ -1,7 +1,10 @@
 const express = require('express');
 const customerController = require('./customerController');
 const { validateCreateCustomer, validateUpdateCustomer } = require('./customerValidator');
+const deliveryLocationsController = require('./deliveryLocationsController');
 const authMiddleware = require('../../common/middlewares/authMiddleware');
+const roleMiddleware = require('../../common/middlewares/roleMiddleware');
+const { UserRoles } = require('../../common/constants/enums');
 
 const router = express.Router();
 
@@ -10,7 +13,7 @@ router.use(authMiddleware);
 
 /**
  * @openapi
- * /customers:
+ * /api/v1/customers:
  *   post:
  *     summary: Cadastra um novo cliente
  *     tags:
@@ -49,7 +52,7 @@ router.post('/', validateCreateCustomer, customerController.createCustomer);
 
 /**
  * @openapi
- * /customers:
+ * /api/v1/customers:
  *   get:
  *     summary: Retorna a lista de todos os clientes
  *     tags:
@@ -64,11 +67,11 @@ router.post('/', validateCreateCustomer, customerController.createCustomer);
  *       500:
  *         description: Erro interno no servidor
  */
-router.get('/', customerController.getCustomers);
+router.get('/', roleMiddleware([UserRoles.ADMIN_GERAL]), customerController.getCustomers);
 
 /**
  * @openapi
- * /customers/{id}:
+ * /api/v1/customers/{id}:
  *   put:
  *     summary: Atualiza os dados de um cliente existente
  *     tags:
@@ -113,7 +116,7 @@ router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
 
 /**
  * @openapi
- * /customers/{id}:
+ * /api/v1/customers/{id}:
  *   delete:
  *     summary: Remove um cliente do sistema
  *     tags:
@@ -137,9 +140,8 @@ router.put('/:id', validateUpdateCustomer, customerController.updateCustomer);
  *       500:
  *         description: Erro interno no servidor
  */
-router.delete('/:id', customerController.deleteCustomer);
+router.delete('/:id', roleMiddleware([UserRoles.ADMIN_GERAL]), customerController.deleteCustomer);
 
-const deliveryLocationsController = require('./deliveryLocationsController');
 
 /**
  * @openapi

@@ -50,6 +50,22 @@ describe('Unit: customerValidator', () => {
             expect(next).toHaveBeenCalledTimes(1);
             expect(res.status).not.toHaveBeenCalled();
             expect(req.body.name).toBe('João da Silva');
+            expect(req.body.nome).toBe('João da Silva');
+            expect(req.body.cpf).toBe('52998224725');
+        });
+
+        it('TC-CUST-VAL-01-B: deve aprovar criação com campo "nome" em português', () => {
+            req.body = {
+                nome: '  Maria Oliveira  ',
+                cpf: '529.982.247-25'
+            };
+
+            validateCreateCustomer(req, res, next);
+
+            expect(next).toHaveBeenCalledTimes(1);
+            expect(res.status).not.toHaveBeenCalled();
+            expect(req.body.nome).toBe('Maria Oliveira');
+            expect(req.body.name).toBe('Maria Oliveira');
             expect(req.body.cpf).toBe('52998224725');
         });
 

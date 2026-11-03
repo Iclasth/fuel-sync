@@ -107,20 +107,22 @@ const createOrder = async (orderData, user) => {
     for (const item of orderData.itens) {
         let unitPrice = item.valor_unitario;
 
-        if (priceMap.has(item.combustivel_id)) {
-            const stationFuel = priceMap.get(item.combustivel_id);
-            if (!stationFuel.disponivel) {
-                throw new AppError(`O combustível (ID: ${item.combustivel_id}) está temporariamente indisponível no posto selecionado.`, 400);
-            }
-            const expectedPrice = Number(stationFuel.preco_litro);
-            if (Math.abs(expectedPrice - Number(item.valor_unitario)) > 0.01) {
-                throw new AppError(
-                    `Preço unitário divergente para o combustível (ID: ${item.combustivel_id}). Esperado: R$ ${expectedPrice.toFixed(2)}, Enviado: R$ ${Number(item.valor_unitario).toFixed(2)}.`,
-                    400
-                );
-            }
-            unitPrice = expectedPrice;
+        if (!priceMap.has(item.combustivel_id)) {
+            throw new AppError(`O combustível (ID: ${item.combustivel_id}) não é comercializado pelo posto selecionado.`, 400);
         }
+
+        const stationFuel = priceMap.get(item.combustivel_id);
+        if (!stationFuel.disponivel) {
+            throw new AppError(`O combustível (ID: ${item.combustivel_id}) está temporariamente indisponível no posto selecionado.`, 400);
+        }
+        const expectedPrice = Number(stationFuel.preco_litro);
+        if (Math.abs(expectedPrice - Number(item.valor_unitario)) > 0.01) {
+            throw new AppError(
+                `Preço unitário divergente para o combustível (ID: ${item.combustivel_id}). Esperado: R$ ${expectedPrice.toFixed(2)}, Enviado: R$ ${Number(item.valor_unitario).toFixed(2)}.`,
+                400
+            );
+        }
+        unitPrice = expectedPrice;
 
         const subtotal = Number((item.quantidade_litros * unitPrice).toFixed(2));
         calculatedTotal += subtotal;
@@ -165,6 +167,19 @@ const createOrder = async (orderData, user) => {
         .select();
 
     if (itemsError) {
+        try {
+            const { error: rollbackError } = await supabase
+                .from('pedidos')
+                .delete()
+                .eq('id', createdOrder.id);
+
+            if (rollbackError) {
+                console.error('Falha no rollback de pedido compensatório:', rollbackError);
+            }
+        } catch (rollbackErr) {
+            console.error('Falha no rollback de pedido compensatório:', rollbackErr);
+        }
+
         throw new AppError(`Erro ao cadastrar itens do pedido: ${itemsError.message}`, 500);
     }
 
@@ -384,13 +399,18 @@ const cancelOrder = async (orderId, motivo, user) => {
         .from('pedidos')
         .update({ status: OrderStatus.CANCELADO })
         .eq('id', Number(orderId))
+        .eq('status', OrderStatus.PENDENTE)
         .select();
 
     if (error) {
         throw new AppError(`Erro ao cancelar pedido: ${error.message}`, 500);
     }
 
-    return data && data.length > 0 ? data[0] : order;
+    if (!data || data.length === 0) {
+        throw new AppError('O pedido não pôde ser cancelado pois seu status foi alterado concorrentemente.', 409);
+    }
+
+    return data[0];
 };
 
 module.exports = {

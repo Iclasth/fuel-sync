@@ -162,6 +162,166 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
             expect(res.body.error).toMatch(/Preço unitário divergente/i);
         });
 
+        it('TC-ORD-API-ANTIFRAUD-02: deve bloquear pedido com 400 se combustível não for comercializado pelo posto selecionado', async () => {
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const mockCustomer = { id: 10, usuario_id: 'usr-cliente-1', nome: 'Cliente Teste' };
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                });
+
+            const unlistedFuelPayload = {
+                ...validPayload,
+                itens: [
+                    { combustivel_id: 999, quantidade_litros: 50, valor_unitario: 6.50 }
+                ]
+            };
+
+            const res = await request(app)
+                .post('/api/v1/orders')
+                .set('Authorization', 'Bearer valid-customer-token')
+                .send(unlistedFuelPayload);
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toMatch(/não é comercializado pelo posto selecionado/i);
+        });
+
+        it('TC-ORD-API-COMPENSACAO: deve excluir compensatoriamente o pedido mestre se itens_pedido falhar', async () => {
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const mockCustomer = { id: 10, usuario_id: 'usr-cliente-1', nome: 'Cliente Teste' };
+            const deleteEqMock = jest.fn().mockResolvedValue({ data: null, error: null });
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    insert: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({
+                            data: [{ id: 777, valor_total: 1010.00, status: OrderStatus.PENDENTE }],
+                            error: null
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    insert: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({
+                            data: null,
+                            error: { message: 'Erro de integridade relacional ao inserir itens' }
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    delete: jest.fn().mockReturnValue({
+                        eq: deleteEqMock
+                    })
+                });
+
+            const res = await request(app)
+                .post('/api/v1/orders')
+                .set('Authorization', 'Bearer valid-customer-token')
+                .send(validPayload);
+
+            expect(res.status).toBe(500);
+            expect(res.body.error).toMatch(/Erro ao cadastrar itens do pedido/i);
+            expect(deleteEqMock).toHaveBeenCalledWith('id', 777);
+        });
+
+        it('TC-ORD-API-COMPENSACAO-FAIL: deve registrar console.error caso o rollback compensatório falhe ao excluir pedido', async () => {
+            const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const mockCustomer = { id: 10, usuario_id: 'usr-cliente-1', nome: 'Cliente Teste' };
+            const rollbackErrorObj = { message: 'Falha de conexao no delete compensatorio' };
+            const deleteEqMock = jest.fn().mockResolvedValue({ data: null, error: rollbackErrorObj });
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockResolvedValue({
+                            data: [
+                                { combustivel_id: 1, preco_litro: 6.50, disponivel: true },
+                                { combustivel_id: 2, preco_litro: 7.20, disponivel: true }
+                            ],
+                            error: null
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    insert: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({
+                            data: [{ id: 888, valor_total: 1010.00, status: OrderStatus.PENDENTE }],
+                            error: null
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    insert: jest.fn().mockReturnValue({
+                        select: jest.fn().mockResolvedValue({
+                            data: null,
+                            error: { message: 'Erro de integridade relacional ao inserir itens' }
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    delete: jest.fn().mockReturnValue({
+                        eq: deleteEqMock
+                    })
+                });
+
+            const res = await request(app)
+                .post('/api/v1/orders')
+                .set('Authorization', 'Bearer valid-customer-token')
+                .send(validPayload);
+
+            expect(res.status).toBe(500);
+            expect(deleteEqMock).toHaveBeenCalledWith('id', 888);
+            expect(consoleErrorSpy).toHaveBeenCalledWith(
+                expect.stringMatching(/rollback.*pedido/i),
+                rollbackErrorObj
+            );
+            consoleErrorSpy.mockRestore();
+        });
+
         it('TC-ORD-API-03: deve rejeitar com 400 se itens estiverem vazios', async () => {
             mockAuthUser('cliente');
 
@@ -512,6 +672,13 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
             const mockOrder = { id: 100, cliente_id: 10, status: OrderStatus.PENDENTE };
             const mockCanceled = { id: 100, cliente_id: 10, status: OrderStatus.CANCELADO };
 
+            const updateEqChain = jest.fn();
+            const updateBuilder = {
+                eq: updateEqChain,
+                select: jest.fn().mockResolvedValue({ data: [mockCanceled], error: null })
+            };
+            updateEqChain.mockReturnValue(updateBuilder);
+
             supabase.from
                 .mockReturnValueOnce({
                     select: jest.fn().mockReturnValue({
@@ -529,9 +696,7 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
                 }) // Busca pedido
                 .mockReturnValueOnce({
                     update: jest.fn().mockReturnValue({
-                        eq: jest.fn().mockReturnValue({
-                            select: jest.fn().mockResolvedValue({ data: [mockCanceled], error: null })
-                        })
+                        eq: updateEqChain
                     })
                 }); // Atualiza para CANCELADO
 
@@ -542,6 +707,49 @@ describe('Integration: Order Routes (/api/v1/orders)', () => {
 
             expect(res.status).toBe(200);
             expect(res.body).toHaveProperty('status', OrderStatus.CANCELADO);
+        });
+
+        it('TC-ORD-API-CANCEL-RACE: deve rejeitar com 409 se atualização concorrente alterar status antes do cancelamento', async () => {
+            mockAuthUser('cliente', 'usr-cliente-1');
+
+            const mockCustomer = { id: 10, usuario_id: 'usr-cliente-1' };
+            const mockOrder = { id: 100, cliente_id: 10, status: OrderStatus.PENDENTE };
+
+            const updateEqChain = jest.fn();
+            const updateBuilder = {
+                eq: updateEqChain,
+                select: jest.fn().mockResolvedValue({ data: [], error: null })
+            };
+            updateEqChain.mockReturnValue(updateBuilder);
+
+            supabase.from
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockCustomer, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    select: jest.fn().mockReturnValue({
+                        eq: jest.fn().mockReturnValue({
+                            single: jest.fn().mockResolvedValue({ data: mockOrder, error: null })
+                        })
+                    })
+                })
+                .mockReturnValueOnce({
+                    update: jest.fn().mockReturnValue({
+                        eq: updateEqChain
+                    })
+                });
+
+            const res = await request(app)
+                .post('/api/v1/orders/100/cancel')
+                .set('Authorization', 'Bearer valid-token')
+                .send({ motivo: 'Mudança de planos' });
+
+            expect(res.status).toBe(409);
+            expect(res.body.error).toMatch(/alterado concorrentemente/i);
         });
 
         it('TC-ORD-API-14: deve rejeitar cancelamento pelo cliente se pedido já estiver EM_TRANSPORTE', async () => {
