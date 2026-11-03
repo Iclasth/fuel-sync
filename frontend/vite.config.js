@@ -6,7 +6,8 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true,
-    port: 5173,
+    port: process.env.PORT ? parseInt(process.env.PORT, 10) : 5173,
+    allowedHosts: true,
     watch: {
       usePolling: true, // Necessário para Hot Reload estável dentro do Docker em alguns hosts
     },
@@ -16,6 +17,11 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+  },
+  preview: {
+    host: true,
+    port: process.env.PORT ? parseInt(process.env.PORT, 10) : 5173,
+    allowedHosts: true,
   },
   test: {
     globals: true,
