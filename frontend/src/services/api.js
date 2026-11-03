@@ -1,9 +1,34 @@
 import axios from 'axios';
 
-// The baseURL is relative to leverage Vite's reverse proxy in dev (/api -> backend:3000)
-// and reverse proxy (e.g. Nginx) in production, preventing CORS issues.
+/**
+ * Resolves the API base URL based on optional custom environment variable.
+ * When VITE_API_URL is provided (e.g. 'https://api.example.com'), appends '/api/v1'.
+ * Otherwise, defaults to relative '/api/v1' for Vite dev proxy or same-domain deployment.
+ */
+export const resolveBaseUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return '/api/v1';
+  }
+  const clean = rawUrl.trim().replace(/\/+$/, '');
+  return `${clean}/api/v1`;
+};
+
+/**
+ * Resolves the token refresh endpoint URL.
+ */
+export const resolveRefreshUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return '/api/v1/auth/refresh';
+  }
+  const clean = rawUrl.trim().replace(/\/+$/, '');
+  return `${clean}/api/v1/auth/refresh`;
+};
+
+const rawBase = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : undefined;
+const baseURL = resolveBaseUrl(rawBase);
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -109,9 +134,12 @@ api.interceptors.response.use(
     isRefreshing = true;
 
     try {
+      const currentApiUrl = typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env.VITE_API_URL : undefined;
+      const refreshEndpoint = resolveRefreshUrl(currentApiUrl);
+
       // Use direct axios call to avoid circular interceptor recursion
       const response = await axios.post(
-        '/api/v1/auth/refresh',
+        refreshEndpoint,
         { refreshToken },
         {
           headers: { 'Content-Type': 'application/json' },

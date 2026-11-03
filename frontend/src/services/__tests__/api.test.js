@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
-import api from '../api';
+import api, { resolveBaseUrl, resolveRefreshUrl } from '../api';
 
 describe('API Service and Interceptors', () => {
   const originalLocation = window.location;
@@ -112,7 +112,7 @@ describe('API Service and Interceptors', () => {
       const result = await responseInterceptor.rejected(mockError);
 
       expect(axiosPostSpy).toHaveBeenCalledWith(
-        '/api/v1/auth/refresh',
+        expect.stringMatching(/\/api\/v1\/auth\/refresh$/),
         { refreshToken: 'valid-refresh-token' },
         expect.any(Object)
       );
@@ -193,5 +193,24 @@ describe('API Service and Interceptors', () => {
       axiosPostSpy.mockRestore();
     });
   });
-});
 
+  describe('URL resolution and Standalone Deployment', () => {
+    it('resolves baseURL to /api/v1 when VITE_API_URL is unset or empty', () => {
+      expect(resolveBaseUrl('')).toBe('/api/v1');
+      expect(resolveBaseUrl(undefined)).toBe('/api/v1');
+      expect(resolveBaseUrl(null)).toBe('/api/v1');
+    });
+
+    it('resolves baseURL correctly with custom VITE_API_URL without trailing slashes', () => {
+      expect(resolveBaseUrl('https://api.fuelsync.com')).toBe('https://api.fuelsync.com/api/v1');
+      expect(resolveBaseUrl('https://api.fuelsync.com/')).toBe('https://api.fuelsync.com/api/v1');
+      expect(resolveBaseUrl('http://localhost:3000///')).toBe('http://localhost:3000/api/v1');
+    });
+
+    it('resolves refreshUrl correctly for relative and absolute URLs', () => {
+      expect(resolveRefreshUrl('')).toBe('/api/v1/auth/refresh');
+      expect(resolveRefreshUrl('https://api.fuelsync.com')).toBe('https://api.fuelsync.com/api/v1/auth/refresh');
+      expect(resolveRefreshUrl('https://api.fuelsync.com/')).toBe('https://api.fuelsync.com/api/v1/auth/refresh');
+    });
+  });
+});
