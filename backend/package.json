@@ -1,14 +1,11 @@
 {
-  "name": "fuel-sync",
+  "name": "fuel-sync-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "FuelSync REST API backend",
+  "main": "server.js",
   "scripts": {
     "test": "jest --runInBand --detectOpenHandles",
-    "test:frontend": "npm --prefix frontend test",
-    "test:all": "npm test && npm run test:frontend",
     "migrate": "node scripts/runMigrations.js",
-    "build:frontend": "npm --prefix frontend run build",
     "start": "node server.js",
     "dev": "node --watch server.js"
   },
