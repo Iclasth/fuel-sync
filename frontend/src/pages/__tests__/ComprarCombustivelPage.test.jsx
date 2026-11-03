@@ -208,4 +208,82 @@ describe('ComprarCombustivelPage', () => {
       );
     });
   });
+
+  it('preserva coordenadas legítimas iguais a zero (FE-04)', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/v1/stations') {
+        return Promise.resolve({
+          data: [{ id: 1, nome_fantasia: 'Auto Posto Imperial', endereco: 'Av. Brasil, 100' }],
+        });
+      }
+      if (url.includes('/fuels')) {
+        return Promise.resolve({
+          data: [
+            {
+              id: 'sf-1',
+              combustivel_id: 1,
+              preco_litro: 6.0,
+              disponivel: true,
+              combustiveis: { nome: 'Gasolina Comum' },
+            },
+          ],
+        });
+      }
+      if (url === '/api/v1/customers/locations') {
+        return Promise.resolve({
+          data: [
+            { id: 99, apelido: 'Marco Zero', endereco: 'Linha do Equador', padrao: true, latitude: 0, longitude: 0 },
+          ],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    api.post.mockResolvedValueOnce({
+      data: { id: 105, status: 'PENDENTE' },
+    });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Gasolina Comum')).toBeInTheDocument();
+      expect(screen.getByText(/Marco Zero/i)).toBeInTheDocument();
+    });
+
+    const litrosInput = screen.getByPlaceholderText('Ex: 500');
+    fireEvent.change(litrosInput, { target: { value: '50' } });
+
+    const submitBtn = screen.getByRole('button', { name: /Confirmar Solicitação de Abastecimento/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/api/v1/orders',
+        expect.objectContaining({
+          destino_latitude: 0,
+          destino_longitude: 0,
+        })
+      );
+    });
+  });
+
+  it('exibe mensagem de indisponibilidade da tabela de preços quando a API de combustíveis falha (FE-03)', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/v1/stations') {
+        return Promise.resolve({
+          data: [{ id: 1, nome_fantasia: 'Auto Posto Imperial' }],
+        });
+      }
+      if (url.includes('/fuels')) {
+        return Promise.reject(new Error('Posto fora de serviço'));
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Tabela de preços indisponível para o posto selecionado no momento/i)).toBeInTheDocument();
+    });
+  });
 });

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import api from '../services/api';
 import { AuthContext } from './AuthContext';
 
@@ -126,17 +126,20 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [token, logout]);
 
-  const value = {
-    user,
-    token,
-    refreshToken,
-    isAuthenticated: Boolean(token),
-    isLoading: isLoading || isVerifying,
-    isVerifying,
-    login,
-    logout,
-    updateTokens,
-  };
+  const value = useMemo(
+    () => ({
+      user,
+      token,
+      refreshToken,
+      isAuthenticated: Boolean(token),
+      isLoading: isLoading || isVerifying,
+      isVerifying,
+      login,
+      logout,
+      updateTokens,
+    }),
+    [user, token, refreshToken, isLoading, isVerifying, login, logout, updateTokens]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

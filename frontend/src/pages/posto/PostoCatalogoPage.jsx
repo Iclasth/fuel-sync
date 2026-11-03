@@ -25,7 +25,8 @@ export const PostoCatalogoPage = () => {
   const [combustiveis, setCombustiveis] = useState([]);
   const [catalogoGlobal, setCatalogoGlobal] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  const [savingFuelId, setSavingFuelId] = useState(null);
+  const [isCadastrando, setIsCadastrando] = useState(false);
   const [historicoCombustivel, setHistoricoCombustivel] = useState(null);
   const [historicoLogs, setHistoricoLogs] = useState([]);
   const [isLoadingHistorico, setIsLoadingHistorico] = useState(false);
@@ -139,14 +140,15 @@ export const PostoCatalogoPage = () => {
   };
 
   const handleSalvarPreco = async (combustivel) => {
-    setIsSaving(true);
+    const fuelId = combustivel.id ?? combustivel.combustivel_id;
+    setSavingFuelId(fuelId);
     setMensagemSucesso('');
     setMensagemErro('');
 
     const precoNum = parseFloat(combustivel.preco_litro);
     if (isNaN(precoNum) || precoNum <= 0) {
       setMensagemErro('O preço por litro deve ser um valor numérico positivo.');
-      setIsSaving(false);
+      setSavingFuelId(null);
       return;
     }
 
@@ -165,7 +167,7 @@ export const PostoCatalogoPage = () => {
       console.error('Erro ao atualizar preço:', err);
       setMensagemErro(err.response?.data?.error || 'Erro ao salvar reajuste de preço.');
     } finally {
-      setIsSaving(false);
+      setSavingFuelId(null);
     }
   };
 
@@ -186,14 +188,14 @@ export const PostoCatalogoPage = () => {
 
   const handleCadastrarNovo = async (e) => {
     e.preventDefault();
-    setIsSaving(true);
+    setIsCadastrando(true);
     setMensagemSucesso('');
     setMensagemErro('');
 
     const preco = parseFloat(novoCombustivel.preco_litro);
     if (isNaN(preco) || preco <= 0) {
       setMensagemErro('Informe um preço por litro válido.');
-      setIsSaving(false);
+      setIsCadastrando(false);
       return;
     }
 
@@ -214,7 +216,7 @@ export const PostoCatalogoPage = () => {
       console.error('Erro ao adicionar combustível:', err);
       setMensagemErro(err.response?.data?.error || 'Erro ao cadastrar combustível no posto.');
     } finally {
-      setIsSaving(false);
+      setIsCadastrando(false);
     }
   };
 
@@ -424,11 +426,20 @@ export const PostoCatalogoPage = () => {
                           <div className="inline-flex items-center justify-end gap-2">
                             <button
                               onClick={() => handleSalvarPreco(comb)}
-                              disabled={isSaving}
+                              disabled={savingFuelId === (comb.id ?? comb.combustivel_id)}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-blue-300 text-white text-xs font-semibold rounded shadow-sm transition-colors cursor-pointer"
                             >
-                              <Save className="w-3.5 h-3.5" />
-                              <span>Salvar</span>
+                              {savingFuelId === (comb.id ?? comb.combustivel_id) ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Salvando...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-3.5 h-3.5" />
+                                  <span>Salvar</span>
+                                </>
+                              )}
                             </button>
 
                             <button
@@ -612,10 +623,10 @@ export const PostoCatalogoPage = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={isSaving}
+                    disabled={isCadastrando}
                     className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
                   >
-                    {isSaving ? 'Salvando...' : 'Cadastrar Combustível'}
+                    {isCadastrando ? 'Salvando...' : 'Cadastrar Combustível'}
                   </button>
                 </div>
               </form>

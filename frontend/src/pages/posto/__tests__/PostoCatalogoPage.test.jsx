@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import PostoCatalogoPage from '../PostoCatalogoPage';
@@ -182,6 +182,58 @@ describe('PostoCatalogoPage', () => {
 
     await waitFor(() => {
       expect(api.delete).toHaveBeenCalledWith('/api/v1/stations/1/fuels/1');
+    });
+  });
+
+  it('desabilita apenas o botão da linha correspondente ao salvar preço (FE-07)', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/v1/stations/me') {
+        return Promise.resolve({
+          data: { id: 1, nome_fantasia: 'Auto Posto Imperial' },
+        });
+      }
+      if (url.includes('/fuels')) {
+        return Promise.resolve({
+          data: [
+            { id: 1, combustivel_id: 1, preco_litro: 5.89, estoque_litros: 4500, disponivel: true, combustiveis: { nome: 'Gasolina Comum' } },
+            { id: 2, combustivel_id: 2, preco_litro: 6.25, estoque_litros: 3000, disponivel: true, combustiveis: { nome: 'Diesel S10' } },
+          ],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    let resolvePut;
+    api.put.mockImplementationOnce(() => new Promise((resolve) => {
+      resolvePut = resolve;
+    }));
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText('Gasolina Comum')).toBeInTheDocument();
+      expect(screen.getByText('Diesel S10')).toBeInTheDocument();
+    });
+
+    const salvarBtns = screen.getAllByRole('button', { name: /Salvar/i });
+    expect(salvarBtns).toHaveLength(2);
+
+    fireEvent.click(salvarBtns[0]);
+
+    await waitFor(() => {
+      const salvandoBtn = screen.getByRole('button', { name: /Salvando/i });
+      expect(salvandoBtn).toBeDisabled();
+
+      const salvarBtnAtivo = screen.getByRole('button', { name: /^Salvar$/i });
+      expect(salvarBtnAtivo).not.toBeDisabled();
+    });
+
+    await act(async () => {
+      resolvePut({ data: { success: true } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Preço do combustível atualizado/i)).toBeInTheDocument();
     });
   });
 });
