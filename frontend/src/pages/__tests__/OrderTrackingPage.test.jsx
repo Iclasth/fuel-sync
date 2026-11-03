@@ -24,9 +24,9 @@ describe('OrderTrackingPage', () => {
     vi.clearAllMocks();
   });
 
-  const renderComponent = () => {
+  const renderComponent = (initialEntries = ['/rastreio?orderId=1']) => {
     return render(
-      <MemoryRouter initialEntries={['/rastreio?orderId=1']}>
+      <MemoryRouter initialEntries={initialEntries}>
         <AuthContext.Provider
           value={{
             user: mockUser,
@@ -264,6 +264,72 @@ describe('OrderTrackingPage', () => {
       expect(screen.getByText('2 na fila de análise')).toBeInTheDocument();
       expect(screen.getByText(/Confirmação estimada: ~13 minutos/i)).toBeInTheDocument();
     });
+  });
+
+  it('não deve disparar requisições duplicadas de predição ao acessar /rastreio sem orderId na URL', async () => {
+    api.get.mockImplementation((url) => {
+      if (url === '/api/v1/orders') {
+        return Promise.resolve({
+          data: [
+            {
+              id: 1,
+              status: 'EM_PREPARACAO',
+              endereco_entrega: 'Marina da Glória, Vaga 12',
+              posto: { id: 1, latitude: -23.55, longitude: -46.63, tempo_medio_preparo_minutos: 15 },
+              destino_latitude: -23.51,
+              destino_longitude: -46.62,
+              tipo_local: 'MARINA',
+              itens_pedido: [],
+            },
+          ],
+        });
+      }
+      if (url === '/api/v1/orders/1') {
+        return Promise.resolve({
+          data: {
+            id: 1,
+            status: 'EM_PREPARACAO',
+            endereco_entrega: 'Marina da Glória, Vaga 12',
+            valor_total: 800.0,
+            posto: { id: 1, latitude: -23.55, longitude: -46.63, tempo_medio_preparo_minutos: 15 },
+            destino_latitude: -23.51,
+            destino_longitude: -46.62,
+            tipo_local: 'MARINA',
+            itens_pedido: [],
+          },
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    api.post.mockImplementation((url) => {
+      if (url === '/api/v1/ai/predict-eta') {
+        return Promise.resolve({
+          data: {
+            data: {
+              total_minutos: 28,
+              confianca: 95,
+              risco_atraso: false,
+              mensagem: 'Carga em preparação. Chegada pontual prevista no píer.',
+            },
+          },
+        });
+      }
+      return Promise.resolve({ data: {} });
+    });
+
+    renderComponent(['/rastreio']);
+
+    await waitFor(() => {
+      expect(screen.getByText(/PEDIDO #1/i)).toBeInTheDocument();
+      expect(screen.getByText('ESTIMATIVA DE ENTREGA')).toBeInTheDocument();
+    });
+
+    const ordersCalls = api.get.mock.calls.filter((call) => call[0] === '/api/v1/orders');
+    expect(ordersCalls).toHaveLength(1);
+
+    const predictEtaCalls = api.post.mock.calls.filter((call) => call[0] === '/api/v1/ai/predict-eta');
+    expect(predictEtaCalls).toHaveLength(1);
   });
 
   describe('formatEtaTimeDisplay', () => {

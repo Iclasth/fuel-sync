@@ -26,7 +26,8 @@ async function predictEta(req, res, next) {
             destination,
             pendingDeliveries,
             customerName,
-            setbackDescription
+            setbackDescription,
+            user: req.user
         });
 
         return res.status(201).json({ status: 'success', data: prediction });

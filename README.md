@@ -118,7 +118,7 @@ SUPABASE_KEY=sua-chave-anon-ou-service-role
 # Configurações do Motor de IA Groq Cloud
 GROQ_API_KEY=gsk_sua_chave_groq_aqui
 GROQ_MODEL=openai/gpt-oss-120b
-GROQ_TIMEOUT_MS=2500
+GROQ_TIMEOUT_MS=7000
 
 # Opcional: String de conexão direta para execução automatizada de migrações DDL
 DATABASE_URL=postgresql://postgres:sua_senha@db.seu-projeto.supabase.co:5432/postgres

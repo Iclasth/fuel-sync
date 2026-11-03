@@ -2,6 +2,18 @@ const request = require('supertest');
 const app = require('../../src/app');
 const supabase = require('../../src/config/supabaseClient');
 const { generateCognitivePrediction } = require('../../src/modules/ai/groqClient');
+const { fetchRealRoute } = require('../../src/modules/ai/routingClient');
+const { clearPredictionCache } = require('../../src/modules/ai/aiService');
+
+jest.mock('../../src/modules/ai/routingClient', () => {
+    const actual = jest.requireActual('../../src/modules/ai/routingClient');
+    return {
+        ...actual,
+        fetchRealRoute: jest.fn().mockImplementation((params) => {
+            return Promise.resolve(actual.generateFallbackRoute(params));
+        })
+    };
+});
 
 jest.mock('../../src/config/supabaseClient', () => {
     return {
@@ -51,6 +63,7 @@ describe('Integration: AI Routes (/api/v1/ai)', () => {
     };
 
     beforeEach(() => {
+        clearPredictionCache();
         jest.clearAllMocks();
 
         // Mock padrão para perfis_usuarios e entregas
@@ -660,5 +673,306 @@ describe('Integration: AI Routes (/api/v1/ai)', () => {
         expect(res.body.data.distancia_km).toBeCloseTo(2.88, 1);
         expect(res.body.data.total_minutos).toBe(24);
     });
-});
 
+    describe('Campos e Metadados Enriquecidos de Roteamento e Segurança', () => {
+        it('deve retornar rota_geometria, fonte_roteamento, janela_entrega e recomendacoes_seguranca com OSRM', async () => {
+            mockAuthUser();
+
+            const mockOsrmGeometry = {
+                type: 'LineString',
+                coordinates: [
+                    [-46.633308, -23.550520],
+                    [-46.629000, -23.535000],
+                    [-46.625300, -23.518600]
+                ]
+            };
+
+            fetchRealRoute.mockResolvedValueOnce({
+                distancia_km: 5.12,
+                distancia_linear_km: 3.64,
+                duracao_minutos: 13,
+                geometria: mockOsrmGeometry,
+                fonte: 'OSRM',
+                anomalia_distancia: false
+            });
+
+            generateCognitivePrediction.mockResolvedValueOnce({
+                confianca: 94,
+                risco_atraso: false,
+                motivo_risco: null,
+                mensagem: 'Previsão calculada com precisão viária OSRM.'
+            });
+
+            const res = await request(app)
+                .post('/api/v1/ai/predict-eta')
+                .set('Authorization', 'Bearer valid-jwt-token')
+                .send(validPayload);
+
+            expect(res.status).toBe(201);
+            expect(res.body.data.fonte_roteamento).toBe('OSRM');
+            expect(res.body.data.rota_geometria).toEqual(mockOsrmGeometry);
+            expect(res.body.data.distancia_km).toBe(5.12);
+
+            // Janela de entrega
+            expect(res.body.data).toHaveProperty('janela_entrega');
+            expect(res.body.data.janela_entrega).toHaveProperty('inicio');
+            expect(res.body.data.janela_entrega).toHaveProperty('fim');
+            expect(res.body.data.janela_entrega.formato_amigavel).toMatch(/\d{2}:\d{2} - \d{2}:\d{2}/);
+
+            // Fatores de tempo
+            expect(res.body.data).toHaveProperty('fatores_tempo');
+            expect(res.body.data.fatores_tempo).toHaveProperty('fila_minutos');
+            expect(res.body.data.fatores_tempo).toHaveProperty('preparo_minutos');
+            expect(res.body.data.fatores_tempo).toHaveProperty('transito_minutos');
+            expect(res.body.data.fatores_tempo).toHaveProperty('total_minutos');
+            expect(res.body.data.fatores_tempo.explicacao).toBeDefined();
+
+            // Diretrizes de segurança
+            expect(res.body.data).toHaveProperty('recomendacoes_seguranca');
+            expect(Array.isArray(res.body.data.recomendacoes_seguranca)).toBe(true);
+            expect(res.body.data.recomendacoes_seguranca.length).toBeGreaterThanOrEqual(3);
+
+            // Condições operacionais
+            expect(res.body.data).toHaveProperty('condicoes_operacionais');
+            expect(res.body.data.condicoes_operacionais).toHaveProperty('nivel_trafego');
+            expect(res.body.data.condicoes_operacionais).toHaveProperty('complexidade_acesso');
+
+            // Retrocompatibilidade total preservada
+            expect(res.body.data).toHaveProperty('horario_previsto_chegada');
+            expect(res.body.data).toHaveProperty('confianca');
+            expect(res.body.data).toHaveProperty('mensagem');
+        });
+
+        it('deve rejeitar com 403 (Anti-BOLA) se cliente tentar consultar pedido pertencente a outro cliente', async () => {
+            mockAuthUser('cliente', 'usr-hacker', 'hacker@test.com');
+
+            supabase.from.mockImplementation((table) => {
+                if (table === 'perfis_usuarios') {
+                    return {
+                        select: jest.fn().mockReturnThis(),
+                        eq: jest.fn().mockReturnThis(),
+                        maybeSingle: jest.fn().mockResolvedValue({
+                            data: { id: 'usr-hacker', email: 'hacker@test.com', role: 'cliente', nome: 'Hacker' },
+                            error: null
+                        })
+                    };
+                }
+                if (table === 'clientes') {
+                    return {
+                        select: jest.fn().mockReturnThis(),
+                        eq: jest.fn().mockReturnThis(),
+                        maybeSingle: jest.fn().mockResolvedValue({
+                            data: { id: 999, usuario_id: 'usr-hacker' },
+                            error: null
+                        })
+                    };
+                }
+                if (table === 'pedidos') {
+                    return {
+                        select: jest.fn().mockReturnThis(),
+                        eq: jest.fn().mockReturnThis(),
+                        maybeSingle: jest.fn().mockResolvedValue({
+                            data: {
+                                id: 101,
+                                cliente_id: 1, // Pertence ao cliente id 1, não ao 999
+                                posto_id: 1,
+                                status: 'CONFIRMADO_POSTO',
+                                destino_latitude: -23.5186,
+                                destino_longitude: -46.6253,
+                                posto: { latitude: -23.5505, longitude: -46.6333 }
+                            },
+                            error: null
+                        })
+                    };
+                }
+                return {
+                    select: jest.fn().mockReturnThis(),
+                    eq: jest.fn().mockReturnThis(),
+                    maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null })
+                };
+            });
+
+            const res = await request(app)
+                .post('/api/v1/ai/predict-eta')
+                .set('Authorization', 'Bearer valid-jwt-token')
+                .send(validPayload);
+
+            expect(res.status).toBe(403);
+            expect(res.body.error).toContain('você não possui autorização');
+        });
+    });
+
+    describe('Idempotência e Cache em Memória das Predições de IA', () => {
+        it('deve retornar predição do cache sem chamar Groq novamente para requisições repetidas do mesmo pedido', async () => {
+            mockAuthUser();
+
+            generateCognitivePrediction.mockResolvedValue({
+                confianca: 96,
+                risco_atraso: false,
+                motivo_risco: null,
+                mensagem: 'Previsão gerada pela IA Groq LPU'
+            });
+
+            // Primeira chamada: calcula e popula o cache
+            const res1 = await request(app)
+                .post('/api/v1/ai/predict-eta')
+                .set('Authorization', 'Bearer valid-jwt-token')
+                .send(validPayload);
+
+            expect(res1.status).toBe(201);
+            expect(generateCognitivePrediction).toHaveBeenCalledTimes(1);
+            expect(res1.body.data.confianca).toBe(96);
+
+            // Segunda chamada com mesmo payload dentro do TTL de 30-60s
+            const res2 = await request(app)
+                .post('/api/v1/ai/predict-eta')
+                .set('Authorization', 'Bearer valid-jwt-token')
+                .send(validPayload);
+
+            expect(res2.status).toBe(201);
+            // Groq NÃO deve ser chamado novamente!
+            expect(generateCognitivePrediction).toHaveBeenCalledTimes(1);
+            expect(res2.body.data.confianca).toBe(96);
+            expect(res2.body.data.mensagem).toBe(res1.body.data.mensagem);
+        });
+
+        it('deve tratar requisições concorrentes simultâneas sem duplicar chamadas ao Groq', async () => {
+            mockAuthUser();
+
+            generateCognitivePrediction.mockImplementation(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                return {
+                    confianca: 94,
+                    risco_atraso: false,
+                    motivo_risco: null,
+                    mensagem: 'Previsão concorrente processada com sucesso'
+                };
+            });
+
+            // Dispara duas requisições paralelas concorrentes
+            const [res1, res2] = await Promise.all([
+                request(app)
+                    .post('/api/v1/ai/predict-eta')
+                    .set('Authorization', 'Bearer valid-jwt-token')
+                    .send(validPayload),
+                request(app)
+                    .post('/api/v1/ai/predict-eta')
+                    .set('Authorization', 'Bearer valid-jwt-token')
+                    .send(validPayload)
+            ]);
+
+            expect(res1.status).toBe(201);
+            expect(res2.status).toBe(201);
+            expect(generateCognitivePrediction).toHaveBeenCalledTimes(1);
+            expect(res1.body.data.mensagem).toBe('Previsão concorrente processada com sucesso');
+            expect(res2.body.data.mensagem).toBe('Previsão concorrente processada com sucesso');
+        });
+
+        it('deve gerar nova predição ao mudar o status do pedido mesmo dentro da janela de tempo', async () => {
+            mockAuthUser();
+
+            generateCognitivePrediction
+                .mockResolvedValueOnce({
+                    confianca: 90,
+                    risco_atraso: false,
+                    motivo_risco: null,
+                    mensagem: 'Status PENDENTE'
+                })
+                .mockResolvedValueOnce({
+                    confianca: 92,
+                    risco_atraso: false,
+                    motivo_risco: null,
+                    mensagem: 'Status CONFIRMADO_POSTO'
+                });
+
+            // 1ª chamada: pedido PENDENTE
+            supabase.from.mockImplementation((table) => {
+                if (table === 'perfis_usuarios') {
+                    return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: { id: 'usr-test-1', role: 'cliente' }, error: null }) };
+                }
+                if (table === 'pedidos') {
+                    return {
+                        select: jest.fn().mockReturnThis(),
+                        eq: jest.fn().mockReturnThis(),
+                        maybeSingle: jest.fn().mockResolvedValue({
+                            data: {
+                                id: 101,
+                                status: 'PENDENTE',
+                                cliente_id: 1,
+                                posto_id: 1,
+                                destino_latitude: -23.5186,
+                                destino_longitude: -46.6253,
+                                posto: { latitude: -23.5505, longitude: -46.6333, tempo_medio_preparo_minutos: 10 }
+                            },
+                            error: null
+                        })
+                    };
+                }
+                if (table === 'previsoes_ia') {
+                    return {
+                        insert: jest.fn().mockImplementation((payload) => ({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({ data: { id: 1, ...payload } })
+                            })
+                        }))
+                    };
+                }
+                return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+            });
+
+            const res1 = await request(app)
+                .post('/api/v1/ai/predict-eta')
+                .set('Authorization', 'Bearer valid-jwt-token')
+                .send(validPayload);
+
+            expect(res1.status).toBe(201);
+            expect(generateCognitivePrediction).toHaveBeenCalledTimes(1);
+
+            // 2ª chamada: pedido mudou para CONFIRMADO_POSTO
+            supabase.from.mockImplementation((table) => {
+                if (table === 'perfis_usuarios') {
+                    return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: { id: 'usr-test-1', role: 'cliente' }, error: null }) };
+                }
+                if (table === 'pedidos') {
+                    return {
+                        select: jest.fn().mockReturnThis(),
+                        eq: jest.fn().mockReturnThis(),
+                        update: jest.fn().mockReturnThis(),
+                        maybeSingle: jest.fn().mockResolvedValue({
+                            data: {
+                                id: 101,
+                                status: 'CONFIRMADO_POSTO',
+                                cliente_id: 1,
+                                posto_id: 1,
+                                destino_latitude: -23.5186,
+                                destino_longitude: -46.6253,
+                                posto: { latitude: -23.5505, longitude: -46.6333, tempo_medio_preparo_minutos: 10 }
+                            },
+                            error: null
+                        })
+                    };
+                }
+                if (table === 'previsoes_ia') {
+                    return {
+                        insert: jest.fn().mockImplementation((payload) => ({
+                            select: jest.fn().mockReturnValue({
+                                single: jest.fn().mockResolvedValue({ data: { id: 2, ...payload } })
+                            })
+                        }))
+                    };
+                }
+                return { select: jest.fn().mockReturnThis(), eq: jest.fn().mockReturnThis(), maybeSingle: jest.fn().mockResolvedValue({ data: null, error: null }) };
+            });
+
+            const res2 = await request(app)
+                .post('/api/v1/ai/predict-eta')
+                .set('Authorization', 'Bearer valid-jwt-token')
+                .send(validPayload);
+
+            expect(res2.status).toBe(201);
+            expect(generateCognitivePrediction).toHaveBeenCalledTimes(2);
+            expect(res2.body.data.mensagem).toContain('CONFIRMADO_POSTO');
+        });
+    });
+
+});

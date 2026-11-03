@@ -155,5 +155,57 @@ describe('Unit: AI Module - Fallback Generator', () => {
             expect(prediction.mensagem).toContain('em ~15 min');
         });
     });
-});
 
+    describe('Estruturas Enriquecidas de Predição', () => {
+        it('deve retornar janela_entrega, fatores_tempo, recomendacoes_seguranca e condicoes_operacionais', () => {
+            const metrics = {
+                tipo_fase: 'ENTREGA',
+                tempo_espera: 12,
+                tempo_preparo: 15,
+                tempo_viagem: 18,
+                total_minutos: 45,
+                tempo_formatado: '45 min',
+                locationType: 'MARINA',
+                litros: 250,
+                horario_previsto_chegada: '2026-10-10T15:00:00.000Z'
+            };
+
+            const prediction = generateFallbackPrediction(metrics, null, 'CONFIRMADO_POSTO');
+
+            expect(prediction).toHaveProperty('janela_entrega');
+            expect(prediction.janela_entrega).toHaveProperty('inicio');
+            expect(prediction.janela_entrega).toHaveProperty('fim');
+            expect(prediction.janela_entrega).toHaveProperty('formato_amigavel');
+
+            expect(prediction).toHaveProperty('fatores_tempo');
+            expect(prediction.fatores_tempo.fila_minutos).toBe(12);
+            expect(prediction.fatores_tempo.preparo_minutos).toBe(15);
+            expect(prediction.fatores_tempo.transito_minutos).toBe(18);
+            expect(prediction.fatores_tempo.total_minutos).toBe(45);
+            expect(prediction.fatores_tempo.explicacao).toContain('12 min');
+
+            expect(prediction).toHaveProperty('recomendacoes_seguranca');
+            expect(Array.isArray(prediction.recomendacoes_seguranca)).toBe(true);
+            expect(prediction.recomendacoes_seguranca.length).toBeGreaterThanOrEqual(3);
+
+            expect(prediction).toHaveProperty('condicoes_operacionais');
+            expect(prediction.condicoes_operacionais.nivel_trafego).toBe('FLUIDO');
+            expect(prediction.condicoes_operacionais.complexidade_acesso).toBe('ALTA');
+        });
+
+        it('deve apontar tráfego adverso quando houver descrição de contratempo', () => {
+            const metrics = {
+                tempo_espera: 0,
+                tempo_preparo: 10,
+                tempo_viagem: 20,
+                total_minutos: 30
+            };
+
+            const prediction = generateFallbackPrediction(metrics, 'Congestionamento severo na ponte', 'EM_TRANSPORTE');
+
+            expect(prediction.condicoes_operacionais.nivel_trafego).toBe('CONGESTIONADO_OU_ADVERSO');
+            expect(prediction.condicoes_operacionais.notas).toContain('Congestionamento');
+        });
+    });
+
+});
