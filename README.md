@@ -9,15 +9,16 @@ Plataforma inteligente de logística e distribuição de combustíveis sob deman
 - [Visão Geral e Arquitetura](#visão-geral-e-arquitetura)
 - [Funcionalidades Principais](#funcionalidades-principais)
 - [Tecnologias Utilizadas](#tecnologias-utilizadas)
-- [Pré-requisitos](#pré-requisitos)
+- [Estrutura de Pastas](#estrutura-de-pastas)
 - [Configuração de Variáveis de Ambiente](#configuração-de-variáveis-de-ambiente)
-- [Estrutura do Banco de Dados e Migrações](#estrutura-do-banco-de-dados-e-migrações)
-- [Instruções de Inicialização](#instruções-de-inicialização)
-  - [Opção 1: Execução com Docker Compose (Recomendado)](#opção-1-execução-com-docker-compose-recomendado)
-  - [Opção 2: Execução Manual para Desenvolvimento Local](#opção-2-execução-manual-para-desenvolvimento-local)
+- [Instruções de Inicialização Local (Sem Docker)](#instruções-de-inicialização-local-sem-docker)
+- [Deploy Separado / Produção](#deploy-separado--produção)
+  - [Deploy do Back-End](#deploy-do-back-end)
+  - [Deploy do Front-End](#deploy-do-front-end)
+- [Execução Opcional com Docker Compose](#execução-opcional-com-docker-compose)
+- [Banco de Dados e Migrações](#banco-de-dados-e-migrações)
 - [Testes Automatizados](#testes-automatizados)
 - [Documentação da API (Swagger / OpenAPI)](#documentação-da-api-swagger--openapi)
-- [Estrutura de Pastas do Projeto](#estrutura-de-pastas-do-projeto)
 
 ---
 
@@ -25,20 +26,26 @@ Plataforma inteligente de logística e distribuição de combustíveis sob deman
 
 O NAVROTAS resolve os gargalos de abastecimento em pontos remotos ou atracadouros náuticos, conectando clientes solicitantes diretamente a postos abastecedores autorizados e frotas de entregadores capacitados.
 
-A arquitetura do projeto é dividida em:
+A arquitetura do projeto é dividida em duas aplicações totalmente autônomas e desacopladas:
 
-1. **Back-End Monolítico Modular (Node.js & Express)**:
+1. **Back-End API (`backend/`)**:
+   - Monolítico modular em Node.js (Express 5).
    - Controle de acesso baseado em funções (RBAC) com sincronização nativa na tabela `perfis_usuarios`.
-   - Camadas de serviços dedicadas por domínio: Autenticação, Clientes, Postos, Catálogo e Precificação, Pedidos, Entregadores e Motor Cognitivo de IA.
-2. **Front-End Single Page Application (React 19 & Vite)**:
-   - Painéis com design system limpo e responsivo em Tailwind CSS, expansão widescreen (`w-full`) e ícones Lucide.
-   - Interfaces isoladas por perfil: Área do Cliente (pedidos e rastreamento), Gestão do Posto (catálogo, pedidos da base e equipe de despacho) e Painel Administrativo.
+   - Camadas de serviços dedicadas por domínio: Autenticação, Clientes, Postos, Catálogo e Precificação, Pedidos, Entregadores e Motor Cognitivo de IA (Groq Cloud LPU).
+   - Totalmente independente, com seu próprio `package.json`, testes Jest, migrações e `Dockerfile`.
+
+2. **Front-End SPA (`frontend/`)**:
+   - Single Page Application em React 19 & Vite 8.
+   - Painéis com design system limpo e responsivo em Tailwind CSS e ícones Lucide.
+   - Interfaces isoladas por perfil: Área do Cliente (pedidos e rastreamento), Gestão do Posto (catálogo, pedidos da base e despacho) e Painel Administrativo.
+   - Suporte dinâmico para deploy isolado via variável `VITE_API_URL` ou proxy reverso local.
+
 3. **Persistência de Dados e RLS (Supabase / PostgreSQL)**:
    - PostgreSQL relacional gerenciado via Supabase com Row Level Security (RLS) e integridade referencial.
+
 4. **Motor Cognitivo de Predição e Telemetria (Groq Cloud LPU)**:
-   - Predição de tempo estimado de entrega (ETA) utilizando o modelo `openai/gpt-oss-120b` via Groq Cloud de altíssima velocidade.
+   - Predição de tempo estimado de entrega (ETA) utilizando o modelo `openai/gpt-oss-120b` via Groq Cloud.
    - Fallback determinístico instantâneo para contingência em caso de oscilação de rede ou timeout.
-   - Saneamento geodésico (Haversine + fator de tortuosidade) e fixação de baseline de entrega com alertas de desvio operacional.
 
 ---
 
@@ -46,253 +53,227 @@ A arquitetura do projeto é dividida em:
 
 - **Autenticação e RBAC**: Registro e login com papéis diferenciados (`cliente`, `posto_admin`, `entregador`, `admin`).
 - **Gestão de Endereços de Entrega**: Cadastro e seleção de pontos geográficos (marinas, piers, atracadouros) com coordenadas de alta precisão (`latitude`/`longitude`).
-- **Catálogo e Precificação Multi-Tenant**: Cada posto possui autonomia sobre quais combustíveis distribui, permitindo definir margens de lucro ou preços unitários específicos por base.
+- **Catálogo e Precificação Multi-Tenant**: Cada posto possui autonomia sobre quais combustíveis distribui e precificação customizada.
 - **Ciclo Completo do Pedido**:
-  - `PENDENTE`: Aguarda análise e aceite pelo posto responsável, exibindo fila de espera isolada.
+  - `PENDENTE`: Aguarda análise e aceite pelo posto responsável.
   - `CONFIRMADO_POSTO`: Posto aceita o pedido, calculando e fixando o baseline oficial de entrega no banco de dados.
-  - `EM_PREPARACAO`: Carga em envase/preparação na base; atrasos em relação ao baseline são monitorados em tempo real.
+  - `EM_PREPARACAO`: Carga em envase/preparação na base; monitoramento de atrasos em tempo real.
   - `EM_TRANSPORTE`: Carga despachada com entregador obrigatório associado e rastreamento de trajeto.
   - `CONCLUIDO`: Entrega confirmada com telemetria validada e baixa de disponibilidade do operador.
-  - `CANCELADO`: Cancelamento seguro permitido apenas enquanto o pedido estiver em fase inicial (`PENDENTE`), prevenindo fraudes operacionais após o início do despacho.
-- **Rastreamento Neutro**: Card de telemetria transparente para o cliente ("ESTIMATIVA DE ENTREGA"), indicando previsões de horário, duração formatada em horas e minutos e eventuais alertas operacionais.
+  - `CANCELADO`: Cancelamento seguro permitido apenas enquanto o pedido estiver em fase inicial (`PENDENTE`).
+- **Rastreamento Neutro**: Card de telemetria transparente para o cliente ("ESTIMATIVA DE ENTREGA"), indicando previsões de horário, duração formatada e alertas operacionais.
 
 ---
 
 ## Tecnologias Utilizadas
 
-### Back-End
-- **Runtime**: Node.js 20+
+### Back-End (`backend/`)
+- **Runtime**: Node.js 20+ / 22+
 - **Framework Web**: Express 5
 - **Banco de Dados**: PostgreSQL através do cliente Supabase (`@supabase/supabase-js`)
 - **Motor de IA**: Groq Cloud API (`openai/gpt-oss-120b`) via fetch nativo
 - **Documentação**: Swagger UI Express e Swagger JSDoc (OpenAPI 3.0)
 - **Testes**: Jest e Supertest
 
-### Front-End
+### Front-End (`frontend/`)
 - **Framework**: React 19
 - **Build Tool**: Vite 8
 - **Estilização**: Tailwind CSS
 - **Navegação**: React Router DOM 7
-- **Comunicação HTTP**: Axios
+- **Comunicação HTTP**: Axios com Silent Refresh automático
 - **Gerenciamento de Estado de Dados**: TanStack Query (React Query)
 - **Ícones**: Lucide React
 - **Testes**: Vitest, React Testing Library e JSDOM
 
-### Infraestrutura e DevOps
-- **Conteinerização**: Docker e Docker Compose
-- **Orquestração de Rede**: Bridge Network dedicada (`fuel-sync-network`)
-
 ---
 
-## Pré-requisitos
+## Estrutura de Pastas
 
-Antes de iniciar, certifique-se de possuir instalado em seu ambiente:
-
-- **Node.js**: Versão 20.x ou superior
-- **npm**: Versão 10.x ou superior
-- **Docker e Docker Compose** (caso opte pela execução conteinerizada)
-- **Instância do Supabase** (projeto ativo no Supabase ou PostgreSQL local compatível)
-- **psql**: PostgreSQL Client CLI (necessário para execução das migrações via runner local)
-- **Chave de API da Groq Cloud** (obtida gratuitamente em [console.groq.com](https://console.groq.com))
+```plaintext
+fuel-sync/
+├── backend/                      # Aplicação Back-End independente
+│   ├── database/                 # Migrações SQL e scripts de seed
+│   │   ├── migrations/           # 001 a 008 DDLs
+│   │   └── seeds/
+│   ├── scripts/                  # Scripts operacionais (ex: runMigrations.js)
+│   ├── src/                      # Código-fonte da API Express
+│   │   ├── common/               # Middlewares, erros, utilitários e entidades de domínio
+│   │   ├── config/               # Swagger e cliente Supabase
+│   │   └── modules/              # Módulos: auth, catalog, couriers, customers, orders, stations, users, ai
+│   ├── tests/                    # Suíte de testes unitários e de integração (Jest)
+│   ├── Dockerfile                # Dockerfile para deploy do backend isolado
+│   ├── package.json              # Dependências e scripts do backend
+│   └── server.js                 # Ponto de entrada HTTP do servidor
+├── frontend/                     # Aplicação Front-End independente (SPA)
+│   ├── src/
+│   │   ├── components/           # Componentes visuais e layout
+│   │   ├── context/              # Contextos de autenticação e sessão
+│   │   ├── pages/                # Telas (Cliente, Posto, Entregador, Admin)
+│   │   ├── routes/               # Rotas e guardiões de acesso
+│   │   └── services/             # Axios configurado com suporte a VITE_API_URL
+│   ├── Dockerfile                # Dockerfile para build do frontend (Nginx ou dev)
+│   ├── nginx.conf                # Configuração do Nginx para produção
+│   ├── package.json              # Dependências e scripts do frontend
+│   └── vite.config.js            # Configuração do Vite e proxy de dev
+├── docker-compose.yml            # Orquestração local opcional de ambos os serviços
+├── package.json                  # Scripts de conveniência da raiz do repositório
+└── README.md                     # Documentação oficial
+```
 
 ---
 
 ## Configuração de Variáveis de Ambiente
 
-Crie o arquivo `.env` na raiz do projeto a partir do modelo existente:
-
-```bash
-cp .env.example .env
-```
-
-Edite o arquivo `.env` preenchendo as seguintes chaves:
+### Back-End (`backend/.env`)
+Crie o arquivo `backend/.env` com base no `backend/.env.example`:
 
 ```env
-# Porta do servidor back-end
 PORT=3000
-
-# Conexão com o Supabase (obrigatório)
 SUPABASE_URL=https://seu-projeto.supabase.co
 SUPABASE_KEY=sua-chave-anon-ou-service-role
-
-# Configurações do Motor de IA Groq Cloud
 GROQ_API_KEY=gsk_sua_chave_groq_aqui
 GROQ_MODEL=openai/gpt-oss-120b
 GROQ_TIMEOUT_MS=7000
+DATABASE_URL=postgresql://postgres:senha@db.seu-projeto.supabase.co:5432/postgres
+```
 
-# Opcional: String de conexão direta para execução automatizada de migrações DDL
-DATABASE_URL=postgresql://postgres:sua_senha@db.seu-projeto.supabase.co:5432/postgres
+### Front-End (`frontend/.env`)
+Crie o arquivo `frontend/.env` com base no `frontend/.env.example`:
+
+```env
+# Em desenvolvimento local (porta padrão do backend):
+VITE_API_URL=http://localhost:3000
+VITE_BACKEND_TARGET=http://localhost:3000
+
+# Em produção separada (ex: Vercel, Netlify):
+# VITE_API_URL=https://api.seubackend.com
 ```
 
 ---
 
-## Estrutura do Banco de Dados e Migrações
+## Instruções de Inicialização Local (Sem Docker)
 
-As tabelas e políticas de banco de dados estão versionadas na pasta `database/migrations/`:
+As duas aplicações rodam de forma 100% nativa via Node.js sem necessidade de Docker Compose.
 
-1. `001_initial_b2c_schema.sql`: Tabelas fundamentais de perfis, postos, combustíveis, pedidos e entregas.
-2. `002_station_pricing_and_multi_tenant.sql`: Regras de precificação independente por posto e auditoria de preços.
-3. `003_client_delivery_locations.sql`: Cadastro de múltiplos endereços de entrega com suporte a geolocalização.
-4. `004_sync_perfis_usuarios.sql`: Triggers de sincronização de usuários e mapeamento de perfis de acesso.
-5. `005_order_courier_assignment.sql`: Suporte ao vínculo e obrigatoriedade de entregadores nos pedidos despachados.
-6. `006_ai_predictions_order_support.sql`: Coluna `pedido_id` e metadados para previsões por pedido na tabela `previsoes_ia`.
-7. `007_order_baseline_eta.sql`: Campos `horario_previsto_entrega`, `tempo_estimado_entrega_minutos` e índice composto por posto e status.
-8. `008_sync_clientes_on_auth_user.sql`: Gatilho de sincronização redundante entre Supabase Auth (`auth.users`), perfis de usuário e clientes.
-
-### Como aplicar as migrações
-
-- **Opção A (Via runner integrado)**:
-  Com a variável `DATABASE_URL` configurada no `.env`, execute:
-  ```bash
-  npm run migrate
-  ```
-
-- **Opção B (Via Console do Supabase)**:
-  Copie o conteúdo dos scripts SQL em ordem sequencial (`001` até `008`) e execute-os diretamente no **SQL Editor** do seu painel do Supabase.
-
----
-
-## Instruções de Inicialização
-
-### Opção 1: Execução com Docker Compose (Recomendado)
-
-O Docker Compose sobe todo o ambiente unificado (Back-End na porta `3000` e Front-End na porta `5173`), com volumes mapeados e reload automático de código.
-
-1. Construa as imagens e inicie os contêineres em segundo plano:
-   ```bash
-   docker-compose up -d --build
-   ```
-
-2. Verifique os logs dos serviços:
-   ```bash
-   docker-compose logs -f
-   ```
-
-3. Acesse a aplicação:
-   - **Front-End**: [http://localhost:5173](http://localhost:5173)
-   - **Back-End API**: [http://localhost:3000](http://localhost:3000)
-   - **Swagger UI**: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
-
-4. Para parar os contêineres:
-   ```bash
-   docker-compose down
-   ```
-
----
-
-### Opção 2: Execução Manual para Desenvolvimento Local
-
-Caso prefira rodar os serviços nativamente no seu sistema operacional:
-
-#### 1. Back-End
-
-Abra o primeiro terminal no diretório raiz do projeto:
-
+### 1. Iniciar o Back-End
+Em um terminal:
 ```bash
-# 1. Instalar as dependências do servidor
+cd backend
 npm install
-
-# 2. Iniciar o servidor em modo de desenvolvimento (com auto-reload)
 npm run dev
 ```
+O servidor estará acessível em `http://localhost:3000` (Swagger em `http://localhost:3000/api-docs`).
 
-O servidor iniciará em `http://localhost:3000`.
-
-#### 2. Front-End
-
-Abra um segundo terminal no diretório raiz do projeto:
-
+### 2. Iniciar o Front-End
+Em outro terminal:
 ```bash
-# 1. Acessar a pasta do frontend e instalar as dependências
 cd frontend
 npm install
-
-# 2. Iniciar o servidor Vite de desenvolvimento
 npm run dev
 ```
+A interface estará acessível em `http://localhost:5173`. O Vite fará o encaminhamento automático das requisições para `http://localhost:3000`.
 
-A interface web estará disponível em `http://localhost:5173`. O Vite está configurado para direcionar chamadas de API (`/api/v1`) automaticamente para `http://localhost:3000`.
+### Atalhos a partir da raiz
+Você também pode iniciar os serviços a partir da raiz do repositório utilizando os scripts de conveniência:
+```bash
+npm run dev:backend    # Roda o backend em modo watch
+npm run dev:frontend   # Roda o servidor de desenvolvimento do frontend
+```
+
+---
+
+## Deploy Separado / Produção
+
+As duas aplicações agora possuem ciclo de vida, build e deploy totalmente independentes:
+
+### Deploy do Back-End
+Pode ser implantado em serviços como **Render, Railway, Fly.io, AWS ECS / App Runner ou Google Cloud Run**:
+- **Opção A (Node.js nativo)**:
+  - Diretório raiz do deploy (Root Directory): `backend`
+  - Comando de Build: `npm install --omit=dev`
+  - Comando de Inicialização: `npm start`
+  - Variáveis de ambiente: definir as chaves de `backend/.env.example`.
+- **Opção B (Container Docker)**:
+  - Contexto de build: `backend/`
+  - Dockerfile: `backend/Dockerfile`
+
+### Deploy do Front-End
+Pode ser implantado em plataformas estáticas/JAMstack como **Vercel, Netlify, Cloudflare Pages ou AWS S3 + CloudFront**:
+- Diretório raiz do deploy (Root Directory): `frontend`
+- Comando de Build: `npm run build`
+- Diretório de saída do build: `dist`
+- **Variável de Ambiente Obrigatória no Deploy**:
+  - `VITE_API_URL=https://url-do-seu-backend-em-producao.com`
+
+---
+
+## Execução Opcional com Docker Compose
+
+Caso deseje subir ambos os serviços juntos em contêineres locais com um único comando:
+
+```bash
+docker compose up -d --build
+```
+
+- **Front-End**: [http://localhost:5173](http://localhost:5173)
+- **Back-End API**: [http://localhost:3000](http://localhost:3000)
+- **Swagger UI**: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
+
+Para parar os contêineres:
+```bash
+docker compose down
+```
+
+---
+
+## Banco de Dados e Migrações
+
+As migrações DDL estão localizadas em `backend/database/migrations/`:
+
+- **Opção A (Via runner integrado no backend)**:
+  Com `DATABASE_URL` preenchida no `.env` do backend:
+  ```bash
+  cd backend
+  npm run migrate
+  ```
+- **Opção B (Via SQL Editor do Supabase)**:
+  Execute os arquivos `001` a `008` sequencialmente no editor do painel web do Supabase.
 
 ---
 
 ## Testes Automatizados
 
-O projeto mantém uma suíte robusta de testes de unidade e integração cobrindo fluxos de ponta a ponta, regras de validação de dados, integridade de esquema, autenticação, rotas de IA e componentes de interface.
+Todas as suítes de teste de unidade e integração funcionam de forma autônoma:
 
-### Executar testes do Back-End (Jest)
+### Testes do Back-End (Jest)
+```bash
+# A partir da pasta backend:
+cd backend && npm test
+
+# Ou a partir da raiz:
+npm run test:backend
+```
+*Cobertura: 32 suítes e 349 testes automatizados cobrindo autenticação, regras de domínio, orçamentos, auditoria, IA Groq e validações.*
+
+### Testes do Front-End (Vitest)
+```bash
+# A partir da pasta frontend:
+cd frontend && npm test
+
+# Ou a partir da raiz:
+npm run test:frontend
+```
+*Cobertura: 22 arquivos e 114 testes cobrindo páginas, componentes, formulários, interceptors e guardiões de rotas.*
+
+### Executar todos os testes
 ```bash
 npm test
 ```
-*Cobertura: 28 suítes e 259 testes automatizados com mocks de persistência e simulações do motor Groq LPU.*
-
-### Executar testes do Front-End (Vitest)
-```bash
-npm run test:frontend
-```
-*Cobertura: 15 arquivos e 70 testes automatizados cobrindo páginas, formulários de compra, rotas protegidas e cards de rastreio.*
-
-### Executar toda a suíte de testes (Full Suite)
-```bash
-npm run test:all
-```
-*Executa consecutivamente os 329 testes automatizados com validação estrita de regressões.*
+*Executa consecutivamente as suítes de backend e frontend.*
 
 ---
 
 ## Documentação da API (Swagger / OpenAPI)
 
-A documentação interativa completa de todos os endpoints RESTful está acessível via Swagger UI com o back-end em execução:
-
-- URL: [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
-
-Principais grupos de rotas documentados:
-- `/api/v1/auth`: Cadastro, login, renovação silenciosa de tokens e dados do perfil autenticado.
-- `/api/v1/customers`: Cadastro, consulta e gestão de dados do cliente solicitante.
-- `/api/v1/users`: Consulta, listagem e gestão administrativa de usuários e perfis de acesso (RBAC).
-- `/api/v1/stations`: Cadastro de postos, parametrização de localização e tempo médio de preparo.
-- `/api/v1/catalog`: Catálogo de combustíveis disponíveis e definição de tabelas de preços por posto.
-- `/api/v1/couriers`: Cadastro de condutores/embarcações, status operacional e disponibilidade de frota.
-- `/api/v1/orders`: Criação de pedidos, consulta de detalhes, atualização de estados e despacho obrigatório com entregador.
-- `/api/v1/ai/predict-eta`: Cálculo contextual de tempo estimado de entrega (ETA), telemetria e análise de desvios operacionais.
-
----
-
-## Estrutura de Pastas do Projeto
-
-```plaintext
-fuel-sync/
-├── database/
-│   └── migrations/               # Scripts DDL sequenciais do banco de dados (001 a 008)
-├── frontend/
-│   ├── public/                   # Favicons e ativos públicos
-│   └── src/
-│       ├── components/           # Componentes reutilizáveis e layout da aplicação
-│       ├── context/              # Contextos React (Autenticação e Sessão)
-│       ├── pages/                # Telas (Cliente, Posto, Entregador, Admin)
-│       ├── routes/               # Gerenciador de rotas e guardiões de acesso (RBAC)
-│       └── services/             # Configuração do Axios e clientes de API
-├── scripts/
-│   └── runMigrations.js          # Utilitário de execução de scripts SQL
-├── src/
-│   ├── common/
-│   │   ├── errors/               # Classes padronizadas de erros HTTP (AppError)
-│   │   └── middlewares/          # Autenticação JWT, validação de perfis e error handler
-│   ├── config/
-│   │   └── swagger.js            # Especificações OpenAPI / Swagger JSDoc
-│   └── modules/
-│       ├── ai/                   # Motor cognitivo Groq LPU, cálculo de ETA e fallbacks
-│       ├── auth/                 # Controladores, rotas e regras de autenticação
-│       ├── catalog/              # Catálogo de produtos e precificação por posto
-│       ├── couriers/             # Gestão de entregadores e frotas de distribuição
-│       ├── customers/            # Endereços e dados de clientes
-│       ├── orders/               # Máquina de estados de pedidos e despacho
-│       ├── stations/             # Gestão e telemetria de bases de abastecimento
-│       └── users/                # Listagem e atualização de perfis de usuários (Admin)
-├── tests/
-│   ├── integration/              # Testes de integração de endpoints REST
-│   └── unit/                     # Testes unitários de regras de negócio e validadores
-├── docker-compose.yml            # Orquestração de contêineres Docker
-├── Dockerfile                    # Configuração de build da imagem de Back-End
-├── package.json                  # Manifesto de dependências e scripts NPM raiz
-└── README.md                     # Documentação oficial do projeto
-```
+Com o backend ativo, acesse a documentação interativa em:
+- [http://localhost:3000/api-docs](http://localhost:3000/api-docs)

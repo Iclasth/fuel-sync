@@ -1,7 +1,7 @@
 services:
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
     container_name: fuel-sync-backend
     restart: unless-stopped
@@ -17,9 +17,8 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - ROUTING_TORTUOSITY_FACTOR=${ROUTING_TORTUOSITY_FACTOR}
     volumes:
-      - .:/app
+      - ./backend:/app
       - /app/node_modules
-      - /app/frontend
     networks:
       - fuel-sync-network
 

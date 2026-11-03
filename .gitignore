@@ -34,6 +34,8 @@ build/Release
 
 # Dependency directories
 node_modules/
+backend/node_modules/
+frontend/node_modules/
 jspm_packages/
 
 # Typescript v1 declaration files
@@ -58,12 +60,20 @@ typings/
 .env
 .env.local
 .env.*.local
-
-# next.js build output
-.next
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
 # build output
 dist/
+frontend/dist/
 out/
 build/
 pr.md
+
+# Agent scratch
+.superpowers/

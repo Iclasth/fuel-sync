@@ -1,32 +1,15 @@
 {
-  "name": "fuel-sync",
+  "name": "fuel-sync-workspace",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "FuelSync monorepo workspace for backend and frontend",
   "scripts": {
-    "test": "jest --runInBand --detectOpenHandles",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "start:backend": "npm --prefix backend start",
+    "test:backend": "npm --prefix backend test",
     "test:frontend": "npm --prefix frontend test",
-    "test:all": "npm test && npm run test:frontend",
-    "migrate": "node scripts/runMigrations.js",
-    "build:frontend": "npm --prefix frontend run build",
-    "start": "node server.js",
-    "dev": "node --watch server.js"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@supabase/supabase-js": "^2.114.0",
-    "cors": "^2.8.6",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "swagger-jsdoc": "^6.3.0",
-    "swagger-ui-express": "^5.0.1",
-    "ws": "^8.21.3"
-  },
-  "devDependencies": {
-    "jest": "^30.5.1",
-    "supertest": "^7.2.2"
+    "test": "npm run test:backend && npm run test:frontend",
+    "build:frontend": "npm --prefix frontend run build"
   }
 }
